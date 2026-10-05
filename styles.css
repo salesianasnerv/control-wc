@@ -1,37 +1,71 @@
+/* Paleta corporativa (igual que el resto de webs del colegio) */
 :root {
-  --bg: #f4f6f9; --panel: #fff; --texto: #1d2433; --suave: #5d6678; --borde: #dde2ea;
-  --primario: #1f5fbf; --primario-txt: #fff;
-  --ok: #1d7a46; --ok-bg: #e3f4ea; --aviso: #a35a00; --aviso-bg: #fff1dc;
-  --mal: #b42318; --mal-bg: #fde8e6; --neutro-bg: #eef1f5;
-  --radio: 10px;
+  --azul: #009abb; --azul-oscuro: #007791;
+  --verde: #b4be00; --verde-oscuro: #939b00;
+  --naranja: #ee712a; --naranja-hover: #d35a15;
+
+  --bg: #F8FAFC; --panel: #FFFFFF; --texto: #1E293B; --suave: #64748B; --borde: #E2E8F0; --neutro-bg: #EEF2F6;
+  --primario: var(--azul); --primario-hover: var(--azul-oscuro); --primario-txt: #fff;
+  --ok: #6b7200; --ok-bg: rgba(180, 190, 0, .16);
+  --aviso: #b94a0c; --aviso-bg: rgba(238, 113, 42, .13);
+  --mal: #c0262d; --mal-bg: #fde8e7;
+  --radio: 12px;
+  --sombra: 0 10px 25px -5px rgba(0, 154, 187, .08), 0 8px 10px -6px rgba(0, 0, 0, .03);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1720; --panel: #17212C; --texto: #E7ECF2; --suave: #93A2B3; --borde: #263340; --neutro-bg: #1F2B37;
+    --ok: #cdd640; --ok-bg: rgba(180, 190, 0, .15);
+    --aviso: #fb923c; --aviso-bg: rgba(238, 113, 42, .16);
+    --mal: #f87171; --mal-bg: rgba(248, 113, 113, .14);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1720; --panel: #17212C; --texto: #E7ECF2; --suave: #93A2B3; --borde: #263340; --neutro-bg: #1F2B37;
+  --ok: #cdd640; --ok-bg: rgba(180, 190, 0, .15);
+  --aviso: #fb923c; --aviso-bg: rgba(238, 113, 42, .16);
+  --mal: #f87171; --mal-bg: rgba(248, 113, 113, .14);
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--texto);
-  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  font: 15px/1.5 "Fira Sans", system-ui, sans-serif; }
 button, input, select { font: inherit; }
 [hidden] { display: none !important; }
 
-.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px;
-  padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--borde); flex-wrap: wrap; }
-.marca { font-weight: 700; font-size: 17px; }
+/* Cabecera */
+.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 18px;
+  padding: 10px 16px; background: var(--panel); border-bottom: 2px solid var(--azul); flex-wrap: wrap; }
+.marca { display: flex; align-items: center; gap: 14px; }
+.marca .logo { height: 40px; width: auto; display: block; }
+.marca span { font-weight: 700; font-size: 18px; color: var(--azul); padding-left: 14px; border-left: 1px solid var(--borde); }
 nav { display: flex; gap: 4px; }
-nav button { border: 0; background: none; padding: 8px 14px; border-radius: 8px; cursor: pointer; color: var(--suave); font-weight: 600; }
-nav button.activa { background: var(--neutro-bg); color: var(--texto); }
+nav button { border: 0; background: none; padding: 8px 14px; border-radius: 999px; cursor: pointer; color: var(--suave); font-weight: 600; }
+nav button:hover { color: var(--azul); }
+nav button.activa { background: rgba(0, 154, 187, .12); color: var(--azul); }
 .usuario { margin-left: auto; font-size: 13px; color: var(--suave); display: flex; gap: 10px; align-items: center; }
 
 .demo { background: var(--aviso-bg); color: var(--aviso); padding: 8px 16px; font-size: 13px; }
 .enlace { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font-size: 13px; }
 
 main { max-width: 1100px; margin: 0 auto; padding: 16px; }
-.login { display: grid; place-items: center; min-height: 60vh; }
-.tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 32px; max-width: 420px; text-align: center; }
-.tarjeta h1 { margin-top: 0; }
+.login { display: grid; place-items: center; min-height: 70vh; }
+.tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 16px; padding: 36px 32px; max-width: 440px; width: 100%; text-align: center; box-shadow: var(--sombra); }
+.tarjeta .logo { height: 58px; width: auto; display: block; margin: 0 auto 1.1rem; }
+.eyebrow { display: inline-block; background: rgba(0, 154, 187, .12); color: var(--azul); font-weight: 700; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; padding: .3rem .8rem; border-radius: 999px; margin-bottom: .9rem; }
+.tarjeta h1 { font-size: 1.9rem; color: var(--azul); margin: 0 0 .4rem; }
+.tarjeta p { color: var(--suave); }
+.divider { height: 2px; background: var(--azul); opacity: .85; max-width: 260px; margin: 1.2rem auto 1.4rem; border-radius: 999px; }
 .error { color: var(--mal); min-height: 1.4em; }
 
 .btn { border: 1px solid var(--borde); background: var(--panel); color: var(--texto); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
-.btn:hover { filter: brightness(.97); }
+.btn:hover { border-color: var(--azul); }
 .btn.primario { background: var(--primario); color: var(--primario-txt); border-color: var(--primario); }
-.btn.aviso { background: var(--aviso); color: #fff; border-color: var(--aviso); }
+.btn.primario:hover { background: var(--primario-hover); border-color: var(--primario-hover); }
+.btn.aviso { background: var(--naranja); color: #fff; border-color: var(--naranja); }
+.btn.aviso:hover { background: var(--naranja-hover); border-color: var(--naranja-hover); }
 .btn.peligro { color: var(--mal); }
 .btn.grande { padding: 12px 20px; font-size: 16px; width: 100%; }
 .btn.mini { padding: 3px 9px; font-size: 13px; }
@@ -58,7 +92,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 16px; }
 .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
 .alumno { position: relative; text-align: left; background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 10px 40px 10px 12px; cursor: pointer; min-height: 58px; }
 .alumno:hover { border-color: var(--primario); }
-.alumno .nom { font-weight: 650; display: block; }
+.alumno .nom { font-weight: 600; display: block; }
 .alumno .ape { font-size: 13px; color: var(--suave); display: block; }
 .alumno .n { position: absolute; right: 8px; bottom: 6px; font-size: 11px; color: var(--suave); }
 .alumno.esta-fuera { background: var(--neutro-bg); border-style: dashed; }
@@ -86,7 +120,7 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--neutro-bg); 
 .tag { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--aviso-bg); color: var(--aviso); }
 .vacio { color: var(--suave); padding: 24px; text-align: center; }
 
-dialog { border: 0; border-radius: 14px; padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+dialog { background: var(--panel); color: var(--texto); border: 0; border-radius: 14px; padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
 dialog::backdrop { background: rgba(15, 20, 30, .45); }
 #dlgForm { padding: 20px; }
 #dlgForm h2 { margin: 0 0 4px; font-size: 19px; }
@@ -99,10 +133,10 @@ dialog::backdrop { background: rgba(15, 20, 30, .45); }
 .mini-kpis b { font-size: 17px; margin-right: 4px; }
 .scroll { max-height: 45vh; overflow: auto; }
 
-.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--texto); color: #fff; padding: 10px 18px; border-radius: 8px; z-index: 20; font-weight: 600; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--azul-oscuro); color: #fff; padding: 10px 18px; border-radius: 8px; z-index: 20; font-weight: 600; }
 
 @media (max-width: 600px) {
-  .top { gap: 8px; } .marca span { display: none; }
+  .top { gap: 8px; } .marca span { display: none; } .marca .logo { height: 32px; }
   .rejilla { grid-template-columns: 1fr 1fr; }
   .filtros { grid-template-columns: 1fr 1fr; }
 }
@@ -118,3 +152,4 @@ dialog::backdrop { background: rgba(15, 20, 30, .45); }
 .barra.click:hover { background: var(--neutro-bg); }
 .nota { display: block; color: var(--suave); font-size: 12px; margin-top: 6px; }
 .caja.destacada { border: 2px solid var(--primario); margin-bottom: 18px; }
+.sin-sesion .top { display: none; }

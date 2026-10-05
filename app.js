@@ -151,7 +151,7 @@
     } catch (e) {
       $("#loginError").textContent = e.message;
     }
-    if (!S.user) { $("#vLogin").hidden = false; return; }
+    if (!S.user) { document.body.classList.add("sin-sesion"); $("#vLogin").hidden = false; return; }
 
     $("#usuario").innerHTML = `<span>${esc(S.user.nombre)}</span>` + (DEMO ? "" : `<button class="btn mini" id="btnSalir">Salir</button>`);
     $("#btnSalir")?.addEventListener("click", () => api.logout());
@@ -515,19 +515,36 @@
     if (r === "ok") generarPdf(S.dlgDatos?.tipo || "ambos");
   }
 
-  function generarPdf(tipo) {
+  // El logo se pasa a PNG una vez para poder incrustarlo en el PDF
+  let logoPng = null;
+  async function cargarLogo() {
+    if (logoPng !== null) return logoPng;
+    try {
+      const img = new Image(); img.src = "logo.svg";
+      await img.decode();
+      const c = document.createElement("canvas"); c.width = 1340; c.height = 430;
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      logoPng = c.toDataURL("image/png");
+    } catch { logoPng = ""; }
+    return logoPng;
+  }
+
+  async function generarPdf(tipo) {
     if (!window.jspdf) return toast("No se pudo cargar el generador de PDF (¿sin conexión?)");
     const { F, regs, res } = S.ultimo;
     const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
-    const W = doc.internal.pageSize.getWidth(), AZUL = [31, 95, 191];
+    const W = doc.internal.pageSize.getWidth(), AZUL = [0, 154, 187];
     const est = { styles: { fontSize: 8.5, cellPadding: 1.6 }, headStyles: { fillColor: AZUL }, margin: { left: 14, right: 14 }, alternateRowStyles: { fillColor: [244, 246, 249] } };
     const titulo = (t, y) => { doc.setFontSize(11.5); doc.setFont(undefined, "bold"); doc.text(t, 14, y); doc.setFont(undefined, "normal"); return y + 2.5; };
     const sitio = (y, h = 30) => (y + h > 280 ? (doc.addPage(), 18) : y);
 
-    doc.setFontSize(16); doc.setFont(undefined, "bold"); doc.text("Control de baños - Informe", 14, 18);
-    doc.setFont(undefined, "normal"); doc.setFontSize(10);
+    const logo = await cargarLogo();
+    if (logo) doc.addImage(logo, "PNG", W - 14 - 45, 10, 45, 14.4);
+    doc.setTextColor(...AZUL); doc.setFontSize(16); doc.setFont(undefined, "bold"); doc.text("Control de baños - Informe", 14, 18);
+    doc.setTextColor(30, 41, 59); doc.setFont(undefined, "normal"); doc.setFontSize(10);
     doc.text([`Alcance: ${F.txt.alcance}`, `Periodo: ${F.txt.periodo}`, `Horas: ${F.txt.franja}`], 14, 26);
-    let y = 42;
+    doc.setDrawColor(...AZUL); doc.setLineWidth(0.6); doc.line(14, 38, W - 14, 38);
+    let y = 44;
 
     if (tipo !== "detalle") {
       doc.autoTable({ ...est, startY: y, theme: "grid", head: [["Salidas", "Urgencias", "Alumnos distintos", "Media fuera (min)"]],
