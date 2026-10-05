@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control de baños</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚻</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="marca">🚻 <span>Control de baños</span></div>
+    <nav id="tabs" hidden>
+      <button data-vista="registrar" class="activa">Registrar</button>
+      <button data-vista="informes">Informes</button>
+    </nav>
+    <div class="usuario" id="usuario"></div>
+  </header>
+
+  <div id="demoAviso" class="demo" hidden>
+    <strong>Modo prueba:</strong> los datos se guardan solo en este navegador.
+    <button id="btnEjemplo" class="enlace">Generar salidas de ejemplo</button> ·
+    <button id="btnVaciar" class="enlace">Borrar todo</button>
+  </div>
+
+  <main>
+    <!-- Acceso -->
+    <section id="vLogin" class="login" hidden>
+      <div class="tarjeta">
+        <h1>Control de baños</h1>
+        <p>Acceso exclusivo para el profesorado con cuenta <strong>@salesianas.org</strong>.</p>
+        <button id="btnLogin" class="btn primario grande">Entrar con Microsoft 365</button>
+        <p id="loginError" class="error"></p>
+      </div>
+    </section>
+
+    <!-- Registrar -->
+    <section id="vRegistrar" hidden>
+      <div id="tramo" class="tramo"></div>
+
+      <div class="fila">
+        <label class="campo crece">Clase
+          <select id="selClase"></select>
+        </label>
+        <label class="campo crece">Buscar alumno/a
+          <input id="buscar" type="search" placeholder="Nombre o apellido…" autocomplete="off">
+        </label>
+      </div>
+
+      <div id="fuera" class="fuera"></div>
+      <div id="rejilla" class="rejilla"></div>
+    </section>
+
+    <!-- Informes -->
+    <section id="vInformes" hidden>
+      <form id="filtros" class="filtros">
+        <label class="campo">Alcance
+          <select name="alcance">
+            <option value="centro">Todo el centro</option>
+            <option value="clase">Una clase</option>
+            <option value="alumno">Un alumno/a</option>
+          </select>
+        </label>
+        <label class="campo" data-si="clase alumno">Clase <select name="clase"></select></label>
+        <label class="campo" data-si="alumno">Alumno/a <select name="alumno"></select></label>
+
+        <label class="campo">Periodo
+          <select name="periodo">
+            <option value="hoy">Hoy</option>
+            <option value="semana" selected>Esta semana</option>
+            <option value="mes">Este mes</option>
+            <option value="curso">Todo el curso</option>
+            <option value="dia">Un día concreto</option>
+            <option value="rango">Entre fechas</option>
+          </select>
+        </label>
+        <label class="campo" data-p="dia rango">Desde <input type="date" name="desde"></label>
+        <label class="campo" data-p="rango">Hasta <input type="date" name="hasta"></label>
+
+        <label class="campo">Horas
+          <select name="franja"></select>
+        </label>
+        <label class="campo" data-f="horas">De <input type="time" name="hDesde" value="08:00"></label>
+        <label class="campo" data-f="horas">A <input type="time" name="hHasta" value="14:30"></label>
+
+        <label class="check"><input type="checkbox" name="urgencias"> Solo urgencias</label>
+      </form>
+
+      <div class="acciones">
+        <button id="btnPdf" class="btn primario">Descargar PDF</button>
+        <button id="btnCsv" class="btn">Descargar Excel (CSV)</button>
+      </div>
+
+      <div id="resultado"></div>
+    </section>
+  </main>
+
+  <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="data/demo-data.js" onerror="window.DEMO_DATA=null"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
