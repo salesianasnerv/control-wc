@@ -222,3 +222,6 @@ h2.etapa::before { content: ""; width: 6px; height: 22px; border-radius: 3px; ba
 .nuevo-curso h3 { margin: 0 0 4px; color: var(--azul); }
 .acciones-fila { text-align: right; white-space: nowrap; }
 .n-orden { width: 2.5em; color: var(--suave); }
+
+/* Pie de página (igual que en el portal de utilidades) */
+.pie { text-align: center; color: var(--suave); font-size: 13px; padding: 20px 16px; margin-top: 24px; border-top: 1px solid var(--borde); }
