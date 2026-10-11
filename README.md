@@ -31,12 +31,13 @@ Con `supabaseUrl` vacío en `config.js`, la web funciona sin servidor: guarda lo
 - Cada registro queda firmado con el correo de quien lo hizo y no se puede falsear. Solo quien creó un registro puede borrarlo. Cualquier profesor/a puede marcar la vuelta.
 - Al acabar el curso, conviene descargar los informes que se quieran conservar y vaciar la tabla `salidas`.
 
-## Nuevo curso o cambios de lista
+## Nuevo curso o cambios de lista (pestaña «Administración»)
 
-Con los PDF de Séneca, ejecuta lo siguiente (requiere `pip install pypdf`):
+Solo la ven las cuentas de la tabla `administradores` (ahora, mangeles.chavez@salesianas.org).
 
-```
-python3 scripts/generar-datos.py "Listas ESO.pdf" "Listas Bach.pdf"
-```
+- **Curso nuevo (cada septiembre):** descarga de Séneca los PDF «Lista de clase» de todos los grupos. En Administración, escribe el nombre del curso (por ejemplo, `2027-2028`) y arrastra los PDF. Revisa el resumen (puedes corregir los nombres de las clases) y pulsa «Crear curso». El curso anterior queda archivado: sus salidas se consultan en Informes eligiendo el curso.
+- **Durante el curso:** altas, bajas y cambios de clase de alumnos sueltos, en la misma pestaña.
+- **Dar permiso a otra cuenta:** en Supabase → SQL Editor:
+  `insert into administradores (email) values ('nombre.apellido@salesianas.org');`
 
-Después vuelve a ejecutar `supabase/seed.sql` (borra también las salidas). Si una clase cambia de nombre en Séneca, añádela en el diccionario `NOMBRES` del script.
+`supabase/cursos.sql` es la estructura de cursos y administración (se ejecutó una vez, después de `schema.sql` y `seed.sql`). Con esto, `seed.sql` y `scripts/generar-datos.py` ya solo sirven para la instalación inicial.

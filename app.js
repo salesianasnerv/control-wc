@@ -50,23 +50,56 @@
   }
 
   // ─── Estado ──────────────────────────────────────────────────────────────
-  const S = { hoy: [], user: null, clases: [], alumnos: [], alumno: new Map(), clase: new Map(), claseId: null, fuera: [], ultimo: [] };
+  const S = { hoy: [], user: null, cursos: [], curso: null, clases: [], alumnos: [], clasesActivas: [], alumnosActivos: [],
+    alumno: new Map(), clase: new Map(), claseId: null, fuera: [], ultimo: [] };
+
+  // Curso "2026-2027" → del 1 de septiembre de 2026 al 1 de septiembre de 2027
+  function rangoCurso(curso) {
+    const y = parseInt(curso?.nombre, 10), [m, dd] = CFG.inicioCurso.split("-").map(Number);
+    if (!y) { const d = inicioCurso(new Date()); return { desde: d, hasta: new Date(d.getFullYear() + 1, m - 1, dd) }; }
+    return { desde: new Date(y, m - 1, dd), hasta: new Date(y + 1, m - 1, dd) };
+  }
+  const clasesDe = (cursoId) => S.clases.filter((c) => c.curso_id == cursoId);
 
   // ─── Acceso a datos: modo prueba (navegador) ─────────────────────────────
   const CLAVE = "cb_demo_salidas";
   const demoApi = {
     _get() { try { return JSON.parse(localStorage.getItem(CLAVE) || "[]"); } catch { return []; } },
     _set(v) { try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch (e) { fallo(e); } },
-    async sesion() { return { email: "profesorado.prueba@" + CFG.dominio, nombre: "Profesor/a de prueba" }; },
+    _db() {
+      try { const d = JSON.parse(localStorage.getItem("cb_demo_db")); if (d) return d; } catch {}
+      if (!window.DEMO_DATA) throw new Error("Falta data/demo-data.js (listas de clase).");
+      const d = {
+        cursos: [{ id: 1, nombre: "2026-2027", activo: true }],
+        clases: DEMO_DATA.map((c, i) => ({ id: c.id, curso_id: 1, nombre: c.nombre, tutor: c.tutor, orden: i + 1 })),
+        alumnos: DEMO_DATA.flatMap((c) => c.alumnos.map((a, i) => ({ id: a.id, clase_id: c.id, nombre: a.nombre, orden: i + 1, activo: true }))),
+      };
+      this._dbSet(d); return d;
+    },
+    _dbSet(d) { try { localStorage.setItem("cb_demo_db", JSON.stringify(d)); } catch (e) { fallo(e); } },
+    async sesion() { return { email: "profesorado.prueba@" + CFG.dominio, nombre: "Profesor/a de prueba", admin: true }; },
     async login() {},
     async logout() { location.reload(); },
-    async datos() {
-      if (!window.DEMO_DATA) throw new Error("Falta data/demo-data.js (listas de clase).");
-      return {
-        clases: DEMO_DATA.map((c, i) => ({ id: c.id, nombre: c.nombre, tutor: c.tutor, orden: i })),
-        alumnos: DEMO_DATA.flatMap((c) => c.alumnos.map((a, i) => ({ id: a.id, clase_id: c.id, nombre: a.nombre, orden: i + 1 }))),
-      };
+    async datos() { return this._db(); },
+    async crearCurso(nombre, clases) {
+      const d = this._db();
+      if (d.cursos.some((c) => c.nombre === nombre)) throw new Error(`Ya existe el curso ${nombre}`);
+      d.cursos.forEach((c) => (c.activo = false));
+      const cid = Math.max(0, ...d.cursos.map((c) => c.id)) + 1;
+      d.cursos.push({ id: cid, nombre, activo: true });
+      let clid = Math.max(0, ...d.clases.map((c) => c.id)), aid = Math.max(0, ...d.alumnos.map((a) => a.id));
+      clases.forEach((c, i) => {
+        d.clases.push({ id: ++clid, curso_id: cid, nombre: c.nombre, tutor: c.tutor, orden: i + 1 });
+        c.alumnos.forEach((n, j) => d.alumnos.push({ id: ++aid, clase_id: clid, nombre: n, orden: j + 1, activo: true }));
+      });
+      this._dbSet(d);
     },
+    async activarCurso(id) { const d = this._db(); d.cursos.forEach((c) => (c.activo = c.id === id)); this._dbSet(d); },
+    async altaAlumno(claseId, nombre) {
+      const d = this._db(), orden = Math.max(0, ...d.alumnos.filter((a) => a.clase_id === claseId).map((a) => a.orden)) + 1;
+      d.alumnos.push({ id: Math.max(0, ...d.alumnos.map((a) => a.id)) + 1, clase_id: claseId, nombre, orden, activo: true }); this._dbSet(d);
+    },
+    async actualizarAlumno(id, cambios) { const d = this._db(); Object.assign(d.alumnos.find((a) => a.id === id), cambios); this._dbSet(d); },
     async registrar(al, urgencia) {
       const v = this._get();
       const r = { id: Date.now(), alumno_id: al.id, clase_id: al.clase_id, salida: new Date().toISOString(), vuelta: null, urgencia, profesor_email: S.user.email, profesor_nombre: S.user.nombre };
@@ -75,9 +108,9 @@
     async vuelta(id) { const v = this._get(); const r = v.find((x) => x.id === id); if (r) r.vuelta = new Date().toISOString(); this._set(v); },
     async borrar(id) { this._set(this._get().filter((x) => x.id !== id)); },
     async hoy() { const h = inicioDia(new Date()).toISOString(); return this._get().filter((x) => x.salida >= h); },
-    async salidas({ desde, hasta, claseId, alumnoId }) {
+    async salidas({ desde, hasta, claseId, claseIds, alumnoId }) {
       return this._get()
-        .filter((x) => x.salida >= desde && x.salida < hasta && (!claseId || x.clase_id == claseId) && (!alumnoId || x.alumno_id == alumnoId))
+        .filter((x) => x.salida >= desde && x.salida < hasta && (!claseId || x.clase_id == claseId) && (!claseIds || claseIds.includes(x.clase_id)) && (!alumnoId || x.alumno_id == alumnoId))
         .sort((a, b) => b.salida.localeCompare(a.salida));
     },
   };
@@ -94,19 +127,34 @@
         await sb.auth.signOut();
         throw new Error(`Solo se permite el acceso con cuentas @${CFG.dominio}.`);
       }
-      return { email, nombre: u.user_metadata?.full_name || u.user_metadata?.name || email };
+      // Solo devuelve fila si esta cuenta está en la tabla de administración (lo impone la base de datos)
+      const adm = await sb.from("administradores").select("email").limit(1);
+      return { email, nombre: u.user_metadata?.full_name || u.user_metadata?.name || email, admin: !adm.error && adm.data.length > 0 };
     },
     async login() {
       ok(await sb.auth.signInWithOAuth({ provider: "azure", options: { scopes: "email profile", redirectTo: location.origin + location.pathname } }));
     },
     async logout() { await sb.auth.signOut(); location.reload(); },
     async datos() {
-      const [c, a] = await Promise.all([
-        sb.from("clases").select("id,nombre,tutor,orden").order("orden"),
-        sb.from("alumnos").select("id,clase_id,nombre,orden").eq("activo", true).order("clase_id").order("orden").range(0, 4999),
+      const [cu, cl] = await Promise.all([
+        sb.from("cursos").select("id,nombre,activo").order("nombre"),
+        sb.from("clases").select("id,curso_id,nombre,tutor,orden").order("orden").range(0, 4999),
       ]);
-      return { clases: ok(c), alumnos: ok(a) };
+      const alumnos = [];
+      for (let i = 0; ; i += 1000) {
+        const d = ok(await sb.from("alumnos").select("id,clase_id,nombre,orden,activo").order("id").range(i, i + 999));
+        alumnos.push(...d);
+        if (d.length < 1000) break;
+      }
+      return { cursos: ok(cu), clases: ok(cl), alumnos };
     },
+    async crearCurso(nombre, clases) { ok(await sb.rpc("crear_curso", { p_nombre: nombre, p_clases: clases })); },
+    async activarCurso(id) { ok(await sb.rpc("activar_curso", { p_id: id })); },
+    async altaAlumno(claseId, nombre) {
+      const orden = Math.max(0, ...S.alumnos.filter((a) => a.clase_id === claseId).map((a) => a.orden)) + 1;
+      ok(await sb.from("alumnos").insert({ clase_id: claseId, nombre, orden }));
+    },
+    async actualizarAlumno(id, cambios) { ok(await sb.from("alumnos").update(cambios).eq("id", id)); },
     async registrar(al, urgencia) {
       return ok(await sb.from("salidas").insert({ alumno_id: al.id, clase_id: al.clase_id, urgencia, profesor_nombre: S.user.nombre }).select().single());
     },
@@ -115,11 +163,12 @@
     async hoy() {
       return ok(await sb.from("salidas").select("*").gte("salida", inicioDia(new Date()).toISOString()).order("salida").range(0, 4999));
     },
-    async salidas({ desde, hasta, claseId, alumnoId }) {
+    async salidas({ desde, hasta, claseId, claseIds, alumnoId }) {
       const todo = [];
       for (let i = 0; ; i += 1000) {
         let q = sb.from("salidas").select("*").gte("salida", desde).lt("salida", hasta).order("salida", { ascending: false }).range(i, i + 999);
         if (claseId) q = q.eq("clase_id", claseId);
+        else if (claseIds) q = q.in("clase_id", claseIds.length ? claseIds : [-1]);
         if (alumnoId) q = q.eq("alumno_id", alumnoId);
         const d = ok(await q);
         todo.push(...d);
@@ -153,44 +202,80 @@
     }
     if (!S.user) { document.body.classList.add("sin-sesion"); $("#vLogin").hidden = false; return; }
 
-    $("#usuario").innerHTML = `<span>${esc(S.user.nombre)}</span>` + (DEMO ? "" : `<button class="btn mini" id="btnSalir">Salir</button>`);
-    $("#btnSalir")?.addEventListener("click", () => api.logout());
+    $("#usuario").innerHTML = `<span>${esc(S.user.nombre)}</span>` +
+      `<a href="#" class="instalar" hidden>Instalar app</a>` +
+      (DEMO ? "" : `<a href="#" id="btnSalir">Salir</a>`);
+    $("#btnSalir")?.addEventListener("click", (e) => { e.preventDefault(); api.logout(); });
+    pintarInstalar();
     $("#tabs").hidden = false;
 
-    try {
-      const d = await api.datos();
-      S.clases = d.clases; S.alumnos = d.alumnos;
-      S.clases.forEach((c) => S.clase.set(c.id, c));
-      S.alumnos.forEach((a) => S.alumno.set(a.id, a));
-    } catch (e) { fallo(e); return; }
+    try { aplicarDatos(await api.datos()); } catch (e) { fallo(e); return; }
 
+    $("#tabAdmin").hidden = !S.user.admin;
     $$("#tabs button").forEach((b) => (b.onclick = () => mostrar(b.dataset.vista)));
     prepararRegistro();
     prepararInformes();
+    if (S.user.admin) prepararAdmin();
     mostrar("registrar");
 
     $("#btnEjemplo").onclick = generarEjemplo;
     $("#btnVaciar").onclick = () => { if (confirm("¿Borrar todas las salidas de prueba?")) { demoApi._set([]); refrescarFuera(); toast("Datos de prueba borrados"); } };
   }
 
+  function aplicarDatos(d) {
+    S.cursos = d.cursos;
+    S.clases = [...d.clases].sort((a, b) => a.orden - b.orden);
+    S.alumnos = [...d.alumnos].sort((a, b) => a.clase_id - b.clase_id || a.orden - b.orden);
+    S.clase = new Map(S.clases.map((c) => [c.id, c]));
+    S.alumno = new Map(S.alumnos.map((a) => [a.id, a]));
+    S.curso = S.cursos.find((c) => c.activo) || S.cursos[S.cursos.length - 1] || null;
+    S.clasesActivas = S.curso ? clasesDe(S.curso.id) : S.clases;
+    const ids = new Set(S.clasesActivas.map((c) => c.id));
+    S.alumnosActivos = S.alumnos.filter((a) => a.activo !== false && ids.has(a.clase_id));
+  }
+
+  // Tras crear un curso o cambiar alumnado: recargar y repintar todo
+  async function recargarDatos() {
+    aplicarDatos(await api.datos());
+    rellenarRegistro(); rellenarFiltrosCurso();
+    if (S.user.admin) pintarAdmin();
+  }
+
   function mostrar(vista) {
     $$("#tabs button").forEach((b) => b.classList.toggle("activa", b.dataset.vista === vista));
     $("#vRegistrar").hidden = vista !== "registrar";
     $("#vInformes").hidden = vista !== "informes";
+    $("#vAdmin").hidden = vista !== "admin";
     if (vista === "informes") cargarInforme();
+    else if (vista === "admin") pintarAdmin();
     else refrescarFuera();
   }
 
   // ─── Registrar ───────────────────────────────────────────────────────────
+  // Primero se elige la clase (botones por etapa); después aparece su alumnado.
+  const ETAPAS = [["ESO", (c) => /\bESO\b/i.test(c.nombre)], ["Bachillerato", (c) => /bach/i.test(c.nombre)]];
+
+  function rellenarRegistro() {
+    if (!S.clasesActivas.some((c) => c.id === S.claseId)) S.claseId = null;
+    pintarRegistro();
+  }
+
+  function abrirClase(id) {
+    S.claseId = id; $("#buscar").value = "";
+    history.pushState({ clase: id }, "");
+    pintarRegistro(); window.scrollTo(0, 0);
+  }
+  function volverAClases() {
+    if (history.state?.clase) history.back();
+    else { S.claseId = null; pintarRegistro(); }
+  }
+
   function prepararRegistro() {
-    const sel = $("#selClase");
-    sel.innerHTML = S.clases.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
-    let guardada = null;
-    try { guardada = localStorage.getItem("cb_clase"); } catch {}
-    if (guardada && S.clase.has(+guardada)) sel.value = guardada;
-    S.claseId = +sel.value;
-    sel.onchange = () => { S.claseId = +sel.value; try { localStorage.setItem("cb_clase", sel.value); } catch {} $("#buscar").value = ""; pintarRejilla(); pintarFuera(); };
-    $("#buscar").oninput = pintarRejilla;
+    $("#buscar").oninput = pintarRegistro;
+    $("#elegirClase").onclick = (e) => { const b = e.target.closest("[data-clase]"); if (b) abrirClase(+b.dataset.clase); };
+    $("#btnVolver").onclick = volverAClases;
+    // Botón «atrás» del móvil: vuelve a la lista de clases en vez de salir de la app
+    window.addEventListener("popstate", (e) => { S.claseId = e.state?.clase ?? null; pintarRegistro(); });
 
     $("#rejilla").onclick = (e) => {
       const card = e.target.closest(".alumno"); if (!card) return;
@@ -204,9 +289,43 @@
       if (b) confirmarVuelta(S.fuera.find((r) => r.id == b.dataset.vuelta));
     };
 
+    rellenarRegistro();
     pintarTramo();
     setInterval(() => { pintarTramo(); pintarFuera(); }, 15000);
     setInterval(() => { if (!$("#vRegistrar").hidden) refrescarFuera(); }, 30000);
+  }
+
+  function pintarRegistro() {
+    const buscando = !!$("#buscar").value.trim(), enClase = !buscando && S.claseId != null;
+    $("#elegirClase").hidden = buscando || enClase;
+    $("#claseCab").hidden = !enClase;
+    if (enClase) {
+      const c = S.clase.get(S.claseId);
+      $("#claseTitulo").innerHTML = `${esc(c?.nombre)}${c?.tutor ? `<small>Tutor/a: ${esc(nombreLargo(c.tutor))}</small>` : ""}`;
+      $("#claseCab").after($("#fuera"));
+    } else {
+      $("#elegirClase").before($("#fuera"));
+    }
+    pintarSelector(); pintarFuera(); pintarRejilla();
+  }
+
+  function pintarSelector() {
+    if ($("#elegirClase").hidden) return;
+    const fueraPor = new Map(), hoyPor = new Map();
+    S.fuera.forEach((r) => fueraPor.set(r.clase_id, (fueraPor.get(r.clase_id) || 0) + 1));
+    S.hoy.forEach((r) => hoyPor.set(r.clase_id, (hoyPor.get(r.clase_id) || 0) + 1));
+    const grupos = ETAPAS.map(([t, f]) => [t, S.clasesActivas.filter(f)]);
+    const resto = S.clasesActivas.filter((c) => !ETAPAS.some(([, f]) => f(c)));
+    if (resto.length) grupos.push(["Otros grupos", resto]);
+    $("#elegirClase").innerHTML = grupos.filter(([, cl]) => cl.length).map(([t, cl]) => `
+      <h2 class="etapa">${esc(t)}</h2>
+      <div class="clases-grid">${cl.map((c) => `
+        <button class="clase-btn" data-clase="${c.id}" type="button">
+          <span class="cn">${esc(c.nombre)}</span>
+          ${c.tutor ? `<span class="ct">${esc(nombreLargo(c.tutor))}</span>` : ""}
+          ${fueraPor.get(c.id) ? `<span class="cb fuera-b">${fueraPor.get(c.id)} fuera</span>`
+            : hoyPor.get(c.id) ? `<span class="cb">${hoyPor.get(c.id)} hoy</span>` : ""}
+        </button>`).join("")}</div>`).join("") || `<div class="vacio">No hay clases en el curso actual.</div>`;
   }
 
   function pintarTramo() {
@@ -220,7 +339,8 @@
   function pintarRejilla() {
     const q = $("#buscar").value.trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
     const norm = (s) => s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
-    const lista = q ? S.alumnos.filter((a) => norm(a.nombre).includes(q)) : S.alumnos.filter((a) => a.clase_id === S.claseId);
+    if (!q && S.claseId == null) { $("#rejilla").innerHTML = ""; return; }
+    const lista = q ? S.alumnosActivos.filter((a) => norm(a.nombre).includes(q)) : S.alumnosActivos.filter((a) => a.clase_id === S.claseId);
     const fueraIds = new Set(S.fuera.map((r) => r.alumno_id));
     const vecesHoy = new Map();
     S.hoy.forEach((r) => vecesHoy.set(r.alumno_id, (vecesHoy.get(r.alumno_id) || 0) + 1));
@@ -238,19 +358,20 @@
   async function refrescarFuera() {
     try { S.hoy = await api.hoy(); } catch (e) { fallo(e); }
     S.fuera = S.hoy.filter((r) => !r.vuelta);
-    pintarFuera(); pintarRejilla();
+    pintarRegistro();
   }
 
   function pintarFuera() {
     const ahora = Date.now();
-    const propias = S.fuera.filter((r) => r.clase_id === S.claseId).sort((a, b) => a.salida.localeCompare(b.salida));
+    const enClase = S.claseId != null && !$("#buscar").value.trim();
+    const propias = S.fuera.filter((r) => !enClase || r.clase_id === S.claseId).sort((a, b) => a.salida.localeCompare(b.salida));
     const otras = S.fuera.length - propias.length;
     $("#fuera").innerHTML = propias.length || otras ? `
       <h3>Fuera ahora${otras ? ` <small style="text-transform:none;font-weight:400">· ${otras} de otras clases</small>` : ""}</h3>
       <div class="fuera-lista">${propias.map((r) => {
         const min = Math.floor((ahora - new Date(r.salida)) / 60000);
         return `<div class="chip${min >= CFG.avisoMin ? " tarde" : ""}">
-          <div><strong>${esc(nombreLargo(S.alumno.get(r.alumno_id)?.nombre || "?"))}</strong><br>
+          <div><strong>${esc(nombreLargo(S.alumno.get(r.alumno_id)?.nombre || "?"))}</strong>${enClase ? "" : ` <span class="chip-clase">${esc(S.clase.get(r.clase_id)?.nombre)}</span>`}<br>
           <small>salió ${hora(new Date(r.salida))} · ${min} min${r.urgencia ? ' · <span class="tag">urgencia</span>' : ""}</small></div>
           <button class="btn mini" data-vuelta="${r.id}">Ha vuelto</button></div>`;
       }).join("")}</div>` : "";
@@ -278,7 +399,7 @@
     if (!r) return;
     try {
       const nueva = await api.registrar(al, r === "urgencia");
-      S.hoy.push(nueva); S.fuera.push(nueva); pintarFuera(); pintarRejilla();
+      S.hoy.push(nueva); S.fuera.push(nueva); pintarRegistro();
       toast(`Salida registrada: ${partes(al.nombre).nom} (${hora(new Date(nueva.salida))})`);
     } catch (err) { fallo(err); }
   }
@@ -305,10 +426,10 @@
 
   // ─── Historial de un alumno ───────────────────────────────────────────────
   async function historial(al) {
-    const ahora = new Date(), cl = S.clase.get(al.clase_id);
+    const ahora = new Date(), cl = S.clase.get(al.clase_id), rc = rangoCurso(S.cursos.find((c) => c.id === cl?.curso_id));
     let regs = [];
     try {
-      regs = await api.salidas({ desde: inicioCurso(ahora).toISOString(), hasta: masDias(inicioDia(ahora), 1).toISOString(), alumnoId: al.id });
+      regs = await api.salidas({ desde: rc.desde.toISOString(), hasta: rc.hasta.toISOString(), alumnoId: al.id });
     } catch (e) { return fallo(e); }
     const desde = (d) => regs.filter((r) => new Date(r.salida) >= d).length;
     const durs = regs.map(durMin).filter((x) => x != null);
@@ -331,6 +452,7 @@
     if (r === "pdf") {
       mostrar("informes");
       const f = $("#filtros");
+      f.curso.value = cl.curso_id; rellenarClasesFiltro();
       f.alcance.value = "alumno"; f.clase.value = al.clase_id; rellenarAlumnosFiltro(); f.alumno.value = al.id;
       f.periodo.value = "curso"; actualizarFiltros(); await cargarInforme();
       opcionesPdf();
@@ -340,13 +462,13 @@
   // ─── Informes ─────────────────────────────────────────────────────────────
   function prepararInformes() {
     const f = $("#filtros");
-    f.clase.innerHTML = S.clases.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
+    rellenarFiltrosCurso();
     f.franja.innerHTML = `<option value="todas">Todas</option>` +
       CLASES_HORARIO.map((t, i) => `<option value="tramo${i}">${esc(t.nombre)} (${t.inicio}–${t.fin})</option>`).join("") +
       `<option value="restringidas">Solo primeros/últimos ${CFG.margenMin} min</option><option value="horas">Entre horas…</option>`;
     f.desde.value = f.hasta.value = isoDia(new Date());
-    rellenarAlumnosFiltro();
     f.addEventListener("change", (e) => {
+      if (e.target.name === "curso") rellenarClasesFiltro();
       if (e.target.name === "clase") rellenarAlumnosFiltro();
       actualizarFiltros(); cargarInforme();
     });
@@ -364,10 +486,25 @@
     };
   }
 
+  function rellenarFiltrosCurso() {
+    const f = $("#filtros");
+    f.curso.innerHTML = [...S.cursos].reverse()
+      .map((c) => `<option value="${c.id}">${esc(c.nombre)}${c.activo ? " (actual)" : ""}</option>`).join("");
+    if (S.curso) f.curso.value = S.curso.id;
+    $("[data-curso]", f).hidden = S.cursos.length < 2;
+    rellenarClasesFiltro();
+  }
+
+  function rellenarClasesFiltro() {
+    const f = $("#filtros");
+    f.clase.innerHTML = clasesDe(f.curso.value).map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
+    rellenarAlumnosFiltro();
+  }
+
   function rellenarAlumnosFiltro() {
     const f = $("#filtros");
     f.alumno.innerHTML = S.alumnos.filter((a) => a.clase_id == f.clase.value)
-      .map((a) => `<option value="${a.id}">${esc(a.nombre)}</option>`).join("");
+      .map((a) => `<option value="${a.id}">${esc(a.nombre)}${a.activo === false ? " (baja)" : ""}</option>`).join("");
   }
 
   function actualizarFiltros() {
@@ -380,13 +517,14 @@
 
   function leerFiltros() {
     const f = $("#filtros"), hoy = inicioDia(new Date());
+    const cursoSel = S.cursos.find((c) => c.id == f.curso.value);
     let desde, hasta, periodoTxt;
     switch (f.periodo.value) {
       case "hoy": desde = hoy; hasta = masDias(hoy, 1); periodoTxt = "Hoy, " + fecha(hoy); break;
       case "semana": desde = lunes(hoy); hasta = masDias(desde, 7); periodoTxt = `Semana del ${fecha(desde)} al ${fecha(masDias(desde, 6))}`; break;
       case "mes": desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1); hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
         periodoTxt = desde.toLocaleDateString("es-ES", { month: "long", year: "numeric" }); periodoTxt = periodoTxt[0].toUpperCase() + periodoTxt.slice(1); break;
-      case "curso": desde = inicioCurso(hoy); hasta = masDias(hoy, 1); periodoTxt = `Curso ${desde.getFullYear()}/${desde.getFullYear() + 1} (hasta hoy)`; break;
+      case "curso": { const rc = rangoCurso(cursoSel); desde = rc.desde; hasta = rc.hasta; periodoTxt = `Curso ${cursoSel?.nombre || desde.getFullYear() + "-" + (desde.getFullYear() + 1)}`; break; }
       case "dia": desde = deIso(f.desde.value || isoDia(hoy)); hasta = masDias(desde, 1); periodoTxt = fecha(desde); break;
       default: {
         desde = deIso(f.desde.value || isoDia(hoy)); const h = deIso(f.hasta.value || isoDia(hoy));
@@ -396,8 +534,10 @@
     const alcance = f.alcance.value;
     const claseId = alcance !== "centro" ? +f.clase.value : null;
     const alumnoId = alcance === "alumno" ? +f.alumno.value : null;
-    const alcanceTxt = alumnoId ? `${nombreLargo(S.alumno.get(alumnoId)?.nombre || "")} (${S.clase.get(claseId)?.nombre})`
-      : claseId ? S.clase.get(claseId)?.nombre : "Todo el centro";
+    const claseIds = clasesDe(f.curso.value).map((c) => c.id);
+    const deOtroCurso = cursoSel && !cursoSel.activo && f.periodo.value !== "curso" ? ` · curso ${cursoSel.nombre}` : "";
+    const alcanceTxt = (alumnoId ? `${nombreLargo(S.alumno.get(alumnoId)?.nombre || "")} (${S.clase.get(claseId)?.nombre})`
+      : claseId ? S.clase.get(claseId)?.nombre : "Todo el centro") + deOtroCurso;
 
     const fr = f.franja.value;
     let enFranja = () => true, franjaTxt = "Todas las horas";
@@ -412,7 +552,7 @@
       enFranja = (m) => m >= a && m <= b; franjaTxt = `De ${f.hDesde.value} a ${f.hHasta.value}`;
     }
     const soloUrg = f.urgencias.checked;
-    return { desde, hasta, claseId, alumnoId, enFranja, franja: fr, soloUrg, alcance, txt: { periodo: periodoTxt, alcance: alcanceTxt, franja: franjaTxt + (soloUrg ? " · solo urgencias" : "") } };
+    return { desde, hasta, claseId, claseIds, alumnoId, enFranja, franja: fr, soloUrg, alcance, txt: { periodo: periodoTxt, alcance: alcanceTxt, franja: franjaTxt + (soloUrg ? " · solo urgencias" : "") } };
   }
 
   let cargaN = 0;
@@ -421,7 +561,7 @@
     $("#resultado").innerHTML = `<div class="vacio">Cargando…</div>`;
     let regs;
     try {
-      regs = await api.salidas({ desde: F.desde.toISOString(), hasta: F.hasta.toISOString(), claseId: F.claseId, alumnoId: F.alumnoId });
+      regs = await api.salidas({ desde: F.desde.toISOString(), hasta: F.hasta.toISOString(), claseId: F.claseId, claseIds: F.claseIds, alumnoId: F.alumnoId });
     } catch (e) { $("#resultado").innerHTML = ""; return fallo(e); }
     if (n !== cargaN) return;
     regs = regs.filter((r) => F.enFranja(minDe(new Date(r.salida))) && (!F.soloUrg || r.urgencia));
@@ -603,14 +743,14 @@
   // ─── Datos de ejemplo (solo modo prueba) ─────────────────────────────────
   function generarEjemplo() {
     const v = demoApi._get(), hoy = inicioDia(new Date()), rnd = (n) => Math.floor(Math.random() * n);
-    const frecuentes = Array.from({ length: 25 }, () => S.alumnos[rnd(S.alumnos.length)]);
+    const frecuentes = Array.from({ length: 25 }, () => S.alumnosActivos[rnd(S.alumnosActivos.length)]);
     const profes = ["Ana Felipe", "Mario Espejo", "Elena Martínez", "Isabel Cortés", "Laura García"];
     for (let i = 0; i < 220; i++) {
       const dia = masDias(hoy, -rnd(30)); if (dia.getDay() === 0 || dia.getDay() === 6) continue;
       const t = CLASES_HORARIO[rnd(CLASES_HORARIO.length)], ini = toMin(t.inicio) + rnd(toMin(t.fin) - toMin(t.inicio));
       const s = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), Math.floor(ini / 60), ini % 60);
       if (s > new Date()) continue;
-      const al = Math.random() < 0.5 ? frecuentes[rnd(frecuentes.length)] : S.alumnos[rnd(S.alumnos.length)];
+      const al = Math.random() < 0.5 ? frecuentes[rnd(frecuentes.length)] : S.alumnosActivos[rnd(S.alumnosActivos.length)];
       const m = ini - toMin(t.inicio), urg = m < CFG.margenMin || toMin(t.fin) - ini <= CFG.margenMin;
       v.push({ id: Date.now() + i, alumno_id: al.id, clase_id: al.clase_id, salida: s.toISOString(),
         vuelta: Math.random() < 0.85 ? new Date(s.getTime() + (3 + rnd(12)) * 60000).toISOString() : null,
@@ -620,6 +760,225 @@
     toast("Salidas de ejemplo generadas");
     $("#vInformes").hidden ? refrescarFuera() : cargarInforme();
   }
+
+  // ─── Administración: cursos y alumnado ──────────────────────────────────
+  // Lector de PDF (solo se descarga cuando alguien de administración lo usa)
+  let pdfjsPromesa = null;
+  function cargarPdfJs() {
+    return (pdfjsPromesa ||= new Promise((res, rej) => {
+      const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+      const sc = Object.assign(document.createElement("script"), { src: base + "pdf.min.js" });
+      sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js"; res(window.pdfjsLib); };
+      sc.onerror = () => { pdfjsPromesa = null; rej(new Error("No se pudo cargar el lector de PDF (¿sin conexión?)")); };
+      document.head.appendChild(sc);
+    }));
+  }
+
+  // Nombres de Séneca → nombres más claros (se pueden corregir en la vista previa)
+  const NOMBRES_SENECA = { "1ºABachSoc": "1º Bach A", "1ºBBachCi": "1º Bach B", "2º Bach HS": "2º Bach A", "2º BACH CyT": "2º Bach B" };
+  const limpiarClase = (s) => NOMBRES_SENECA[s] ||
+    s.replace(/º\s*/, "º ").replace(/\bESO\s*([A-Z])$/i, "ESO $1").replace(/\bBACH\b/i, "Bach").replace(/\s+/g, " ").trim();
+
+  // Lee los PDF «Lista de clase» de Séneca: una clase por página
+  async function leerListasSeneca(file) {
+    const lib = await cargarPdfJs();
+    const pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const clases = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const tc = await (await pdf.getPage(p)).getTextContent();
+      const filas = [];
+      for (const it of tc.items) {
+        if (!it.str.trim() || it.transform[1] || it.transform[2]) continue;   // vacío o texto girado del margen
+        const y = it.transform[5];
+        let f = filas.find((f) => Math.abs(f.y - y) <= 2);
+        if (!f) filas.push((f = { y, items: [] }));
+        f.items.push({ x: it.transform[4], s: it.str });
+      }
+      const lineas = filas.sort((a, b) => b.y - a.y)
+        .map((f) => f.items.sort((a, b) => a.x - b.x).map((i) => i.s).join(" ").replace(/\s+/g, " ").trim());
+      const texto = lineas.join("\n");
+      const m = texto.match(/LISTA DE CLASE DE\s+(.+?)\s*\(/);
+      if (!m) continue;
+      const tutor = (texto.match(/TUTOR\/A\s*:\s*(.+)/) || [])[1]?.trim() || "";
+      const alumnos = [];
+      let dentro = false;
+      for (const l of lineas) {
+        if (/N[º°o]\s*orden/i.test(l)) { dentro = true; continue; }
+        if (!dentro) continue;
+        if (/^\S+,\s*\d{2}\/\d{2}\/\d{4}$|^P[áa]g\./.test(l)) break;   // "Sevilla, 13/09/2026" o "Pág. 1 de 4"
+        const mm = l.match(/^(\d{1,2})\s*(.+,.+)$/) || l.match(/^(.+,.+?)\s*(\d{1,2})$/);
+        if (mm) alumnos.push((/^\d/.test(mm[1]) ? mm[2] : mm[1]).trim());
+      }
+      const previa = clases.find((c) => c.original === m[1].trim());   // clase que sigue en otra página
+      if (previa) previa.alumnos.push(...alumnos);
+      else clases.push({ original: m[1].trim(), nombre: limpiarClase(m[1].trim()), tutor, alumnos });
+    }
+    return clases;
+  }
+
+  const A = { importadas: null };   // estado de la importación en curso
+
+  function prepararAdmin() {
+    const zona = $("#admSoltar"), input = $("#admPdf");
+    const procesar = async (files) => {
+      const pdfs = [...files].filter((f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
+      if (!pdfs.length) return toast("Elige los PDF de «Lista de clase» de Séneca");
+      $("#admVista").innerHTML = `<div class="vacio">Leyendo ${pdfs.length} PDF…</div>`;
+      try {
+        A.importadas = [];
+        for (const f of pdfs) A.importadas.push(...(await leerListasSeneca(f)));
+        pintarVistaPrevia();
+      } catch (e) { $("#admVista").innerHTML = ""; fallo(e); }
+    };
+    input.onchange = () => { procesar(input.files); input.value = ""; };
+    zona.ondragover = (e) => { e.preventDefault(); zona.classList.add("encima"); };
+    zona.ondragleave = () => zona.classList.remove("encima");
+    zona.ondrop = (e) => { e.preventDefault(); zona.classList.remove("encima"); procesar(e.dataTransfer.files); };
+
+    $("#admVista").addEventListener("input", (e) => {
+      const i = e.target.dataset.nombreClase;
+      if (i != null) { A.importadas[+i].nombre = e.target.value; avisosVistaPrevia(); }
+    });
+    $("#admVista").addEventListener("click", async (e) => {
+      const quitar = e.target.closest("[data-quitar-clase]");
+      if (quitar) { A.importadas.splice(+quitar.dataset.quitarClase, 1); pintarVistaPrevia(); return; }
+      if (e.target.closest("#admCancelar")) { A.importadas = null; $("#admVista").innerHTML = ""; return; }
+      if (e.target.closest("#admCrear")) crearCursoNuevo();
+    });
+
+    $("#admCursos").onclick = async (e) => {
+      const b = e.target.closest("[data-activar]"); if (!b) return;
+      const c = S.cursos.find((x) => x.id == b.dataset.activar);
+      if (!confirm(`¿Volver a poner ${c.nombre} como curso actual?\n\nEn Registrar aparecerá el alumnado de ${c.nombre}.`)) return;
+      try { await api.activarCurso(c.id); await recargarDatos(); toast(`Curso actual: ${c.nombre}`); } catch (err) { fallo(err); }
+    };
+
+    $("#admClase").onchange = pintarAlumnadoAdmin;
+    $("#admAlumnos").onclick = async (e) => {
+      const b = e.target.closest("[data-baja]"); if (!b) return;
+      const al = S.alumno.get(+b.dataset.baja), activo = al.activo === false;
+      if (!activo && !confirm(`¿Dar de baja a ${nombreLargo(al.nombre)}?\n\nDejará de aparecer en Registrar. Sus salidas se conservan en los informes.`)) return;
+      try { await api.actualizarAlumno(al.id, { activo }); await recargarDatos(); toast(activo ? "Alumno/a reactivado/a" : "Baja registrada"); } catch (err) { fallo(err); }
+    };
+    $("#admAlumnos").onchange = async (e) => {
+      const sel = e.target.closest("[data-mover]"); if (!sel || !sel.value) return;
+      const al = S.alumno.get(+sel.dataset.mover), destino = S.clase.get(+sel.value);
+      if (!confirm(`¿Cambiar a ${nombreLargo(al.nombre)} a ${destino.nombre}?\n\nSus salidas anteriores siguen contando en su clase de antes.`)) { sel.value = ""; return; }
+      try { await api.actualizarAlumno(al.id, { clase_id: destino.id, orden: 999 }); await recargarDatos(); toast(`Cambiado/a a ${destino.nombre}`); } catch (err) { fallo(err); }
+    };
+    $("#admAlta").onsubmit = async (e) => {
+      e.preventDefault();
+      const nombre = e.target.nombre.value.trim().replace(/\s*,\s*/, ", ");
+      if (!/^[^,]+, [^,]+$/.test(nombre)) return toast("Escríbelo como «Apellidos, Nombre»");
+      const claseId = +$("#admClase").value;
+      try { await api.altaAlumno(claseId, nombre); e.target.reset(); await recargarDatos(); toast(`Añadido/a a ${S.clase.get(claseId).nombre}`); } catch (err) { fallo(err); }
+    };
+    pintarAdmin();
+  }
+
+  function pintarAdmin() {
+    const nAl = (cid) => { const ids = new Set(clasesDe(cid).map((c) => c.id)); return S.alumnos.filter((a) => ids.has(a.clase_id) && a.activo !== false).length; };
+    $("#admCursos").innerHTML = `<table><thead><tr><th>Curso</th><th class="num">Clases</th><th class="num">Alumnado</th><th></th></tr></thead><tbody>
+      ${[...S.cursos].reverse().map((c) => `<tr><td><strong>${esc(c.nombre)}</strong></td><td class="num">${clasesDe(c.id).length}</td><td class="num">${nAl(c.id)}</td>
+        <td>${c.activo ? `<span class="tag-actual">Actual</span>` : `<span class="tag-archivado">Archivado</span> <button class="btn mini" data-activar="${c.id}">Volver a activar</button>`}</td></tr>`).join("")}
+      </tbody></table>`;
+    const y = parseInt(S.curso?.nombre, 10) || new Date().getFullYear() - 1;
+    if (!$("#admNombre").value || S.cursos.some((c) => c.nombre === $("#admNombre").value)) $("#admNombre").value = `${y + 1}-${y + 2}`;
+    $("#admCursoActual").textContent = S.curso?.nombre || "—";
+
+    const sel = $("#admClase"), previa = sel.value;
+    sel.innerHTML = S.clasesActivas.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
+    if (S.clasesActivas.some((c) => c.id == previa)) sel.value = previa;
+    pintarAlumnadoAdmin();
+  }
+
+  function pintarAlumnadoAdmin() {
+    const claseId = +$("#admClase").value;
+    const lista = S.alumnos.filter((a) => a.clase_id === claseId);
+    const otras = S.clasesActivas.filter((c) => c.id !== claseId);
+    $("#admAlumnos").innerHTML = lista.length ? `<table><thead><tr><th>Alumno/a</th><th>Cambiar de clase</th><th></th></tr></thead><tbody>
+      ${lista.map((a) => `<tr class="${a.activo === false ? "de-baja" : ""}"><td>${esc(a.nombre)}${a.activo === false ? ' <span class="tag">baja</span>' : ""}</td>
+        <td>${a.activo === false ? "" : `<select class="mini-select" data-mover="${a.id}"><option value="">—</option>${otras.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("")}</select>`}</td>
+        <td><button class="btn mini${a.activo === false ? "" : " peligro"}" data-baja="${a.id}">${a.activo === false ? "Reactivar" : "Dar de baja"}</button></td></tr>`).join("")}
+      </tbody></table>` : `<div class="vacio">Esta clase no tiene alumnado.</div>`;
+  }
+
+  function pintarVistaPrevia() {
+    const cl = A.importadas;
+    if (!cl.length) {
+      $("#admVista").innerHTML = `<div class="alerta">No he encontrado ninguna lista de clase en esos PDF. Tienen que ser los de Séneca «Lista de clase» (un grupo por página).</div>`;
+      return;
+    }
+    const total = cl.reduce((n, c) => n + c.alumnos.length, 0);
+    $("#admVista").innerHTML = `
+      <div class="resumen-import"><strong>${cl.length} clases · ${total} alumnos</strong> encontrados. Revisa los nombres de las clases (puedes corregirlos) y pulsa «Crear curso».</div>
+      <div class="import-lista">${cl.map((c, i) => `
+        <div class="import-clase">
+          <input value="${esc(c.nombre)}" data-nombre-clase="${i}" aria-label="Nombre de la clase">
+          <span class="import-n">${c.alumnos.length} alumnos</span>
+          <button class="btn mini peligro" data-quitar-clase="${i}" title="Quitar esta clase">✕</button>
+          <details><summary>Tutor/a: ${esc(c.tutor || "—")} · ver alumnado</summary><ol>${c.alumnos.map((a) => `<li>${esc(a)}</li>`).join("")}</ol></details>
+        </div>`).join("")}</div>
+      <div id="admAvisos"></div>
+      <div class="acciones"><button class="btn primario" id="admCrear">Crear curso</button><button class="btn" id="admCancelar">Cancelar</button></div>`;
+    avisosVistaPrevia();
+  }
+
+  function avisosVistaPrevia() {
+    const cl = A.importadas, avisos = [];
+    const nombres = cl.map((c) => c.nombre.trim());
+    const rep = nombres.filter((n, i) => n && nombres.indexOf(n) !== i);
+    if (rep.length) avisos.push(`Hay clases con el mismo nombre: ${[...new Set(rep)].join(", ")}.`);
+    if (nombres.some((n) => !n)) avisos.push("Hay alguna clase sin nombre.");
+    const vacias = cl.filter((c) => !c.alumnos.length).map((c) => c.nombre);
+    if (vacias.length) avisos.push(`No se ha leído alumnado en: ${vacias.join(", ")}.`);
+    $("#admAvisos").innerHTML = avisos.map((a) => `<div class="alerta">${esc(a)}</div>`).join("");
+    $("#admCrear").disabled = rep.length > 0 || nombres.some((n) => !n);
+    $("#admCrear").textContent = `Crear curso ${$("#admNombre").value.trim()}`;
+  }
+
+  async function crearCursoNuevo() {
+    const nombre = $("#admNombre").value.trim();
+    if (!/^\d{4}-\d{4}$/.test(nombre)) return toast("El nombre del curso debe ser como 2027-2028");
+    if (S.cursos.some((c) => c.nombre === nombre)) return toast(`Ya existe el curso ${nombre}`);
+    const cl = A.importadas.map((c) => ({ nombre: c.nombre.trim(), tutor: c.tutor, alumnos: c.alumnos }));
+    const total = cl.reduce((n, c) => n + c.alumnos.length, 0);
+    const r = await dialogo(`
+      <h2>Crear curso ${esc(nombre)}</h2>
+      <p class="dlg-sub">${cl.length} clases · ${total} alumnos</p>
+      ${S.curso ? `<p>El curso <strong>${esc(S.curso.nombre)}</strong> quedará <strong>archivado</strong>: sus salidas se conservan y se pueden consultar en Informes eligiendo el curso.</p>` : ""}
+      <p>Desde ese momento, en Registrar solo aparecerá el alumnado de ${esc(nombre)}.</p>
+      <div class="dlg-botones"><button class="btn" value="">Cancelar</button><button class="btn primario" value="crear">Crear curso</button></div>`);
+    if (r !== "crear") return;
+    try {
+      await api.crearCurso(nombre, cl);
+      A.importadas = null; $("#admVista").innerHTML = "";
+      await recargarDatos();
+      toast(`Curso ${nombre} creado`);
+    } catch (e) { fallo(e); }
+  }
+
+  // ─── App instalable ──────────────────────────────────────────────────────
+  let instalar = null;
+  const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const enApp = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  function pintarInstalar() { $$(".instalar").forEach((el) => (el.hidden = !instalar)); }
+  async function instalarApp() {
+    if (instalar === "ios") {
+      dialogo(`<h2>Instalar la app</h2>
+        <ol class="pasos"><li>Pulsa el botón <b>Compartir</b> de Safari (el cuadrado con una flecha hacia arriba).</li>
+        <li>Elige <b>«Añadir a pantalla de inicio»</b>.</li><li>Pulsa <b>Añadir</b>. Aparecerá el icono del colegio en tu pantalla.</li></ol>
+        <div class="dlg-botones"><button class="btn primario" value="">Entendido</button></div>`);
+      return;
+    }
+    if (instalar) { instalar.prompt(); await instalar.userChoice.catch(() => {}); instalar = null; pintarInstalar(); }
+  }
+  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); instalar = e; pintarInstalar(); });
+  window.addEventListener("appinstalled", () => { instalar = null; pintarInstalar(); toast("¡App instalada!"); });
+  if (esIOS() && !enApp()) instalar = "ios";
+  document.addEventListener("click", (e) => { if (e.target.closest(".instalar")) { e.preventDefault(); instalarApp(); } });
+  pintarInstalar();
 
   iniciar();
 })();

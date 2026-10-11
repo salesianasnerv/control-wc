@@ -3,9 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Control de baños</title>
+  <title>Control de baños · Salesianas Nervión</title>
+  <meta name="description" content="Registro de salidas al baño del alumnado e informes para el profesorado.">
   <meta name="theme-color" content="#009abb">
-  <link rel="icon" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Baños">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <!-- Vista previa al compartir (WhatsApp, Teams…) -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:site_name" content="Escuelas Salesianas María Auxiliadora">
+  <meta property="og:title" content="Control de baños · Salesianas Nervión">
+  <meta property="og:description" content="Registro de salidas al baño del alumnado e informes para el profesorado.">
+  <meta property="og:url" content="https://control-wc.vercel.app/">
+  <meta property="og:image" content="https://control-wc.vercel.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Control de baños · Escuelas Salesianas María Auxiliadora">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://control-wc.vercel.app/og-image.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,13 +36,14 @@
 </head>
 <body>
   <header class="top">
-    <div class="marca"><img class="logo" src="logo.svg" alt="Salesianas Nervión"><span>Control de baños</span></div>
-    <nav id="tabs" hidden>
-      <button data-vista="registrar" class="activa">Registrar</button>
-      <button data-vista="informes">Informes</button>
-    </nav>
+    <div class="marca"><img class="logo" src="logo.svg" alt="Salesianas Nervión"><h1>Control de baños</h1></div>
     <div class="usuario" id="usuario"></div>
   </header>
+  <nav id="tabs" hidden>
+    <button data-vista="registrar" class="activa">Registrar</button>
+    <button data-vista="informes">Informes</button>
+    <button data-vista="admin" id="tabAdmin" hidden>Administración</button>
+  </nav>
 
   <div id="demoAviso" class="demo" hidden>
     <strong>Modo prueba:</strong> los datos se guardan solo en este navegador.
@@ -35,9 +59,13 @@
         <span class="eyebrow">Profesorado · Curso 2026-2027</span>
         <h1>Control de baños</h1>
         <p>Pulsa el botón y entra con tu cuenta del colegio <strong>@salesianas.org</strong>.</p>
-        <button id="btnLogin" class="btn primario grande btn-ms">
+        <button id="btnLogin" class="btn primario grande btn-ms" type="button">
           <svg viewBox="0 0 21 21" width="20" height="20" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
           Entrar con Microsoft 365
+        </button>
+        <button class="btn instalar instalar-portada" type="button" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>
+          Instalar la app en este dispositivo
         </button>
         <p id="loginError" class="error"></p>
       </div>
@@ -47,15 +75,22 @@
     <section id="vRegistrar" hidden>
       <div id="tramo" class="tramo"></div>
 
-      <div class="fila">
-        <label class="campo crece">Clase
-          <select id="selClase"></select>
-        </label>
-        <label class="campo crece">Buscar alumno/a
-          <input id="buscar" type="search" placeholder="Nombre o apellido…" autocomplete="off">
-        </label>
-      </div>
+      <label class="buscador">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="buscar" type="search" placeholder="Buscar alumno/a en todas las clases…" autocomplete="off" aria-label="Buscar alumno/a">
+      </label>
 
+      <!-- Paso 1: elegir clase -->
+      <div id="elegirClase"></div>
+
+      <!-- Paso 2: alumnado de la clase -->
+      <div id="claseCab" class="clase-cab" hidden>
+        <button class="btn volver" id="btnVolver" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Clases
+        </button>
+        <h2 id="claseTitulo"></h2>
+      </div>
       <div id="fuera" class="fuera"></div>
       <div id="rejilla" class="rejilla"></div>
     </section>
@@ -63,6 +98,7 @@
     <!-- Informes -->
     <section id="vInformes" hidden>
       <form id="filtros" class="filtros">
+        <label class="campo" data-curso>Curso <select name="curso"></select></label>
         <label class="campo">Alcance
           <select name="alcance">
             <option value="centro">Todo el centro</option>
@@ -103,6 +139,40 @@
       <div id="resultado"></div>
     </section>
   </main>
+
+  <!-- Administración (solo cuentas autorizadas) -->
+  <section id="vAdmin" class="admin" hidden>
+    <section class="caja admin-bloque">
+      <h2>Cursos</h2>
+      <p class="ayuda">El curso actual es el que aparece en Registrar. Los anteriores quedan archivados y se pueden consultar en Informes.</p>
+      <div id="admCursos"></div>
+    </section>
+
+    <section class="caja admin-bloque">
+      <h2>Empezar un curso nuevo</h2>
+      <p class="ayuda">Cada septiembre: descarga de Séneca los PDF de <strong>«Lista de clase»</strong> de todos los grupos, escribe el nombre del curso y arrástralos aquí. Antes de crear nada verás un resumen para revisarlo.</p>
+      <div class="fila">
+        <label class="campo">Nombre del curso <input id="admNombre" placeholder="2027-2028" inputmode="numeric" autocomplete="off"></label>
+      </div>
+      <label class="soltar" id="admSoltar">
+        <input type="file" id="admPdf" accept="application/pdf,.pdf" multiple hidden>
+        <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <span><strong>Arrastra aquí los PDF de Séneca</strong> o pulsa para elegirlos</span>
+      </label>
+      <div id="admVista"></div>
+    </section>
+
+    <section class="caja admin-bloque">
+      <h2>Alumnado del curso <span id="admCursoActual"></span></h2>
+      <p class="ayuda">Para altas, bajas y cambios de grupo durante el curso. Las salidas ya registradas no se pierden nunca.</p>
+      <div class="fila"><label class="campo crece">Clase <select id="admClase"></select></label></div>
+      <div id="admAlumnos"></div>
+      <form id="admAlta" class="fila alta">
+        <label class="campo crece">Añadir alumno/a a esta clase <input name="nombre" placeholder="Apellidos, Nombre" autocomplete="off" required></label>
+        <button class="btn primario">Añadir</button>
+      </form>
+    </section>
+  </section>
 
   <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
   <div id="toast" class="toast" hidden></div>
