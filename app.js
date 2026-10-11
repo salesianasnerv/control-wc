@@ -100,6 +100,14 @@
       d.alumnos.push({ id: Math.max(0, ...d.alumnos.map((a) => a.id)) + 1, clase_id: claseId, nombre, orden, activo: true }); this._dbSet(d);
     },
     async actualizarAlumno(id, cambios) { const d = this._db(); Object.assign(d.alumnos.find((a) => a.id === id), cambios); this._dbSet(d); },
+    async editarClase(id, cambios) {
+      const d = this._db(), c = d.clases.find((x) => x.id === id);
+      if (cambios.nombre && d.clases.some((x) => x.id !== id && x.curso_id === c.curso_id && x.nombre === cambios.nombre)) throw new Error("Ya hay una clase con ese nombre en este curso");
+      Object.assign(c, cambios); this._dbSet(d);
+    },
+    async admins() { const d = this._db(); return (d.admins ||= [S.user.email]).map((email) => ({ email })); },
+    async addAdmin(email) { const d = this._db(); d.admins ||= [S.user.email]; if (!d.admins.includes(email)) d.admins.push(email); this._dbSet(d); },
+    async delAdmin(email) { const d = this._db(); d.admins = (d.admins || []).filter((e) => e !== email); this._dbSet(d); },
     async registrar(al, urgencia) {
       const v = this._get();
       const r = { id: Date.now(), alumno_id: al.id, clase_id: al.clase_id, salida: new Date().toISOString(), vuelta: null, urgencia, profesor_email: S.user.email, profesor_nombre: S.user.nombre };
@@ -155,6 +163,18 @@
       ok(await sb.from("alumnos").insert({ clase_id: claseId, nombre, orden }));
     },
     async actualizarAlumno(id, cambios) { ok(await sb.from("alumnos").update(cambios).eq("id", id)); },
+    async editarClase(id, cambios) {
+      const r = await sb.from("clases").update(cambios).eq("id", id);
+      if (r.error?.code === "23505") throw new Error("Ya hay una clase con ese nombre en este curso");
+      ok(r);
+    },
+    async admins() { return ok(await sb.from("administradores").select("email").order("email")); },
+    async addAdmin(email) {
+      const r = await sb.from("administradores").insert({ email });
+      if (r.error?.code === "23505") throw new Error("Esa cuenta ya tiene acceso");
+      ok(r);
+    },
+    async delAdmin(email) { ok(await sb.from("administradores").delete().eq("email", email)); },
     async registrar(al, urgencia) {
       return ok(await sb.from("salidas").insert({ alumno_id: al.id, clase_id: al.clase_id, urgencia, profesor_nombre: S.user.nombre }).select().single());
     },
@@ -212,7 +232,12 @@
     try { aplicarDatos(await api.datos()); } catch (e) { fallo(e); return; }
 
     $("#tabAdmin").hidden = !S.user.admin;
-    $$("#tabs button").forEach((b) => (b.onclick = () => mostrar(b.dataset.vista)));
+    $$("#tabs > button[data-vista]").forEach((b) => (b.onclick = () => mostrar(b.dataset.vista)));
+    // Menú desplegable «Administración» (como en la Biblioteca)
+    const menu = $("#tabAdmin");
+    $("[data-menu]", menu).onclick = () => menu.classList.toggle("abierto");
+    $$("[data-admin]", menu).forEach((b) => (b.onclick = () => { menu.classList.remove("abierto"); mostrar("admin", b.dataset.admin); }));
+    document.addEventListener("click", (e) => { if (!e.target.closest("#tabAdmin")) menu.classList.remove("abierto"); });
     prepararRegistro();
     prepararInformes();
     if (S.user.admin) prepararAdmin();
@@ -241,8 +266,14 @@
     if (S.user.admin) pintarAdmin();
   }
 
-  function mostrar(vista) {
-    $$("#tabs button").forEach((b) => b.classList.toggle("activa", b.dataset.vista === vista));
+  function mostrar(vista, apartado) {
+    $$("#tabs > button[data-vista]").forEach((b) => b.classList.toggle("activa", b.dataset.vista === vista));
+    $("#tabAdmin [data-menu]").classList.toggle("activa", vista === "admin");
+    if (vista === "admin") {
+      S.admSec = apartado || S.admSec || "cursos";
+      $$("#vAdmin [data-sec]").forEach((el) => (el.hidden = el.dataset.sec !== S.admSec));
+      $$("#tabAdmin [data-admin]").forEach((b) => b.classList.toggle("activo", b.dataset.admin === S.admSec));
+    }
     $("#vRegistrar").hidden = vista !== "registrar";
     $("#vInformes").hidden = vista !== "informes";
     $("#vAdmin").hidden = vista !== "admin";
@@ -819,6 +850,7 @@
   const A = { importadas: null };   // estado de la importación en curso
 
   function prepararAdmin() {
+    // ── Cursos académicos
     const zona = $("#admSoltar"), input = $("#admPdf");
     const procesar = async (files) => {
       const pdfs = [...files].filter((f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
@@ -834,6 +866,8 @@
     zona.ondragover = (e) => { e.preventDefault(); zona.classList.add("encima"); };
     zona.ondragleave = () => zona.classList.remove("encima");
     zona.ondrop = (e) => { e.preventDefault(); zona.classList.remove("encima"); procesar(e.dataTransfer.files); };
+    $("#btnNuevoCurso").onclick = () => { $("#admNuevo").hidden = false; $("#btnNuevoCurso").hidden = true; $("#admNuevo").scrollIntoView({ behavior: "smooth" }); };
+    $("#btnCerrarNuevo").onclick = cerrarNuevoCurso;
 
     $("#admVista").addEventListener("input", (e) => {
       const i = e.target.dataset.nombreClase;
@@ -847,60 +881,149 @@
     });
 
     $("#admCursos").onclick = async (e) => {
+      const ver = e.target.closest("[data-ver-curso]");
+      if (ver) { $("#admCursoSel").value = ver.dataset.verCurso; rellenarClasesAdmin(); mostrar("admin", "alumnado"); return; }
       const b = e.target.closest("[data-activar]"); if (!b) return;
       const c = S.cursos.find((x) => x.id == b.dataset.activar);
       if (!confirm(`¿Volver a poner ${c.nombre} como curso actual?\n\nEn Registrar aparecerá el alumnado de ${c.nombre}.`)) return;
       try { await api.activarCurso(c.id); await recargarDatos(); toast(`Curso actual: ${c.nombre}`); } catch (err) { fallo(err); }
     };
 
+    // ── Alumnado
+    $("#admCursoSel").onchange = rellenarClasesAdmin;
     $("#admClase").onchange = pintarAlumnadoAdmin;
+    $("#admClaseForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const f = e.target, id = +$("#admClase").value;
+      const nombre = f.nombre.value.trim(), tutor = f.tutor.value.trim().replace(/\s*,\s*/, ", ");
+      if (!nombre) return toast("La clase necesita un nombre");
+      try { await api.editarClase(id, { nombre, tutor }); await recargarDatos(); toast("Clase actualizada"); } catch (err) { fallo(err); }
+    };
     $("#admAlumnos").onclick = async (e) => {
+      const mod = e.target.closest("[data-modificar]");
+      if (mod) return modificarAlumno(S.alumno.get(+mod.dataset.modificar));
       const b = e.target.closest("[data-baja]"); if (!b) return;
       const al = S.alumno.get(+b.dataset.baja), activo = al.activo === false;
       if (!activo && !confirm(`¿Dar de baja a ${nombreLargo(al.nombre)}?\n\nDejará de aparecer en Registrar. Sus salidas se conservan en los informes.`)) return;
       try { await api.actualizarAlumno(al.id, { activo }); await recargarDatos(); toast(activo ? "Alumno/a reactivado/a" : "Baja registrada"); } catch (err) { fallo(err); }
     };
-    $("#admAlumnos").onchange = async (e) => {
-      const sel = e.target.closest("[data-mover]"); if (!sel || !sel.value) return;
-      const al = S.alumno.get(+sel.dataset.mover), destino = S.clase.get(+sel.value);
-      if (!confirm(`¿Cambiar a ${nombreLargo(al.nombre)} a ${destino.nombre}?\n\nSus salidas anteriores siguen contando en su clase de antes.`)) { sel.value = ""; return; }
-      try { await api.actualizarAlumno(al.id, { clase_id: destino.id, orden: 999 }); await recargarDatos(); toast(`Cambiado/a a ${destino.nombre}`); } catch (err) { fallo(err); }
-    };
     $("#admAlta").onsubmit = async (e) => {
       e.preventDefault();
-      const nombre = e.target.nombre.value.trim().replace(/\s*,\s*/, ", ");
-      if (!/^[^,]+, [^,]+$/.test(nombre)) return toast("Escríbelo como «Apellidos, Nombre»");
+      const nombre = normalizarNombre(e.target.nombre.value);
+      if (!nombre) return toast("Escríbelo como «Apellidos, Nombre»");
       const claseId = +$("#admClase").value;
       try { await api.altaAlumno(claseId, nombre); e.target.reset(); await recargarDatos(); toast(`Añadido/a a ${S.clase.get(claseId).nombre}`); } catch (err) { fallo(err); }
+    };
+
+    // ── Cuentas de administración
+    $("#admCuentas").onclick = async (e) => {
+      const q = e.target.closest("[data-quitar-admin]");
+      if (q) {
+        if (!confirm(`¿Quitar el acceso de administración a ${q.dataset.quitarAdmin}?`)) return;
+        try { await api.delAdmin(q.dataset.quitarAdmin); pintarCuentas(); toast("Acceso retirado"); } catch (err) { fallo(err); }
+        return;
+      }
+      const m = e.target.closest("[data-modificar-admin]"); if (!m) return;
+      const viejo = m.dataset.modificarAdmin;
+      const r = await dialogo(`<h2>Modificar cuenta</h2>
+        <label class="campo">Correo <input name="email" type="email" value="${esc(viejo)}" autocomplete="off" required></label>
+        <div class="dlg-botones"><button class="btn" value="" formnovalidate>Cancelar</button><button class="btn primario" value="ok">Guardar</button></div>`);
+      const nuevo = (S.dlgDatos?.email || "").trim().toLowerCase();
+      if (r !== "ok" || !nuevo || nuevo === viejo) return;
+      if (!esCuentaColegio(nuevo)) return toast(`Tiene que ser una cuenta @${CFG.dominio}`);
+      try { await api.addAdmin(nuevo); await api.delAdmin(viejo); pintarCuentas(); toast("Cuenta modificada"); } catch (err) { fallo(err); pintarCuentas(); }
+    };
+    $("#admCuentaForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const email = e.target.email.value.trim().toLowerCase();
+      if (!esCuentaColegio(email)) return toast(`Tiene que ser una cuenta @${CFG.dominio}`);
+      try { await api.addAdmin(email); e.target.reset(); pintarCuentas(); toast("Cuenta añadida"); } catch (err) { fallo(err); }
     };
     pintarAdmin();
   }
 
+  const esCuentaColegio = (email) => new RegExp(`^[^@\\s]+@${CFG.dominio.replace(".", "\\.")}$`).test(email);
+  // "garcía lópez ,ana" → "García López, Ana"; null si no tiene la forma «Apellidos, Nombre»
+  function normalizarNombre(txt) {
+    const n = txt.trim().replace(/\s+/g, " ").replace(/\s*,\s*/, ", ");
+    return /^[^,]+, [^,]+$/.test(n) ? n : null;
+  }
+
+  function cerrarNuevoCurso() {
+    A.importadas = null; $("#admVista").innerHTML = "";
+    $("#admNuevo").hidden = true; $("#btnNuevoCurso").hidden = false;
+  }
+
   function pintarAdmin() {
     const nAl = (cid) => { const ids = new Set(clasesDe(cid).map((c) => c.id)); return S.alumnos.filter((a) => ids.has(a.clase_id) && a.activo !== false).length; };
-    $("#admCursos").innerHTML = `<table><thead><tr><th>Curso</th><th class="num">Clases</th><th class="num">Alumnado</th><th></th></tr></thead><tbody>
+    $("#admCursos").innerHTML = `<table><thead><tr><th>Curso</th><th class="num">Clases</th><th class="num">Alumnado</th><th>Estado</th><th></th></tr></thead><tbody>
       ${[...S.cursos].reverse().map((c) => `<tr><td><strong>${esc(c.nombre)}</strong></td><td class="num">${clasesDe(c.id).length}</td><td class="num">${nAl(c.id)}</td>
-        <td>${c.activo ? `<span class="tag-actual">Actual</span>` : `<span class="tag-archivado">Archivado</span> <button class="btn mini" data-activar="${c.id}">Volver a activar</button>`}</td></tr>`).join("")}
+        <td>${c.activo ? `<span class="tag-actual">Actual</span>` : `<span class="tag-archivado">Archivado</span>`}</td>
+        <td class="acciones-fila"><button class="btn mini" data-ver-curso="${c.id}">Ver alumnado</button>${c.activo ? "" : ` <button class="btn mini" data-activar="${c.id}">Volver a activar</button>`}</td></tr>`).join("")}
       </tbody></table>`;
     const y = parseInt(S.curso?.nombre, 10) || new Date().getFullYear() - 1;
     if (!$("#admNombre").value || S.cursos.some((c) => c.nombre === $("#admNombre").value)) $("#admNombre").value = `${y + 1}-${y + 2}`;
-    $("#admCursoActual").textContent = S.curso?.nombre || "—";
 
-    const sel = $("#admClase"), previa = sel.value;
-    sel.innerHTML = S.clasesActivas.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
-    if (S.clasesActivas.some((c) => c.id == previa)) sel.value = previa;
+    const sc = $("#admCursoSel"), previo = sc.value;
+    sc.innerHTML = [...S.cursos].reverse().map((c) => `<option value="${c.id}">${esc(c.nombre)}${c.activo ? " (actual)" : ""}</option>`).join("");
+    sc.value = S.cursos.some((c) => c.id == previo) ? previo : S.curso?.id;
+    rellenarClasesAdmin(true);
+    pintarCuentas();
+  }
+
+  // Lista de clases del curso elegido; el alumnado solo aparece al elegir una
+  function rellenarClasesAdmin(conservar) {
+    const sel = $("#admClase"), previa = sel.value, clases = clasesDe($("#admCursoSel").value);
+    sel.innerHTML = `<option value="">Elige una clase…</option>` + clases.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
+    if (conservar === true && clases.some((c) => c.id == previa)) sel.value = previa;
     pintarAlumnadoAdmin();
   }
 
+  async function pintarCuentas() {
+    let lista = [];
+    try { lista = await api.admins(); } catch (e) { $("#admCuentas").innerHTML = ""; return fallo(e); }
+    $("#admCuentas").innerHTML = `<table><tbody>${lista.map(({ email }) => `<tr><td>${esc(email)}</td>
+      <td class="acciones-fila">${email.toLowerCase() === S.user.email ? `<span class="tag-actual">Tú</span>`
+        : `<button class="btn mini" data-modificar-admin="${esc(email)}">Modificar</button> <button class="btn mini peligro" data-quitar-admin="${esc(email)}">Quitar</button>`}</td></tr>`).join("")}</tbody></table>`;
+  }
+
   function pintarAlumnadoAdmin() {
-    const claseId = +$("#admClase").value;
+    const claseId = +$("#admClase").value, cl = S.clase.get(claseId);
+    $("#admClaseDetalle").hidden = !cl;
+    if (!cl) return;
+    const fc = $("#admClaseForm");
+    fc.nombre.value = cl.nombre || ""; fc.tutor.value = cl.tutor || "";
     const lista = S.alumnos.filter((a) => a.clase_id === claseId);
-    const otras = S.clasesActivas.filter((c) => c.id !== claseId);
-    $("#admAlumnos").innerHTML = lista.length ? `<table><thead><tr><th>Alumno/a</th><th>Cambiar de clase</th><th></th></tr></thead><tbody>
-      ${lista.map((a) => `<tr class="${a.activo === false ? "de-baja" : ""}"><td>${esc(a.nombre)}${a.activo === false ? ' <span class="tag">baja</span>' : ""}</td>
-        <td>${a.activo === false ? "" : `<select class="mini-select" data-mover="${a.id}"><option value="">—</option>${otras.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("")}</select>`}</td>
-        <td><button class="btn mini${a.activo === false ? "" : " peligro"}" data-baja="${a.id}">${a.activo === false ? "Reactivar" : "Dar de baja"}</button></td></tr>`).join("")}
+    const bajas = lista.filter((a) => a.activo === false).length;
+    $("#admAlumnos").innerHTML = lista.length ? `
+      <p class="ayuda">${lista.length - bajas} alumnos${bajas ? ` · ${bajas} de baja` : ""}</p>
+      <table><tbody>
+      ${lista.map((a, i) => `<tr class="${a.activo === false ? "de-baja" : ""}"><td class="num n-orden">${i + 1}</td><td>${esc(a.nombre)}${a.activo === false ? ' <span class="tag">baja</span>' : ""}</td>
+        <td class="acciones-fila">${a.activo === false ? "" : `<button class="btn mini" data-modificar="${a.id}">Modificar</button> `}<button class="btn mini${a.activo === false ? "" : " peligro"}" data-baja="${a.id}">${a.activo === false ? "Reactivar" : "Dar de baja"}</button></td></tr>`).join("")}
       </tbody></table>` : `<div class="vacio">Esta clase no tiene alumnado.</div>`;
+  }
+
+  async function modificarAlumno(al) {
+    const cl = S.clase.get(al.clase_id), mismas = clasesDe(cl.curso_id);
+    const r = await dialogo(`<h2>Modificar alumno/a</h2>
+      <p class="dlg-sub">${esc(nombreLargo(al.nombre))} · ${esc(cl.nombre)}</p>
+      <div class="opciones">
+        <label class="campo">Apellidos, Nombre <input name="nombre" value="${esc(al.nombre)}" autocomplete="off" required></label>
+        <label class="campo">Clase <select name="clase">${mismas.map((c) => `<option value="${c.id}"${c.id === cl.id ? " selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></label>
+      </div>
+      <p class="ayuda">Si cambia de clase, sus salidas anteriores siguen contando en la clase de antes.</p>
+      <div class="dlg-botones"><button class="btn" value="" formnovalidate>Cancelar</button><button class="btn primario" value="ok">Guardar</button></div>`);
+    if (r !== "ok") return;
+    const nombre = normalizarNombre(S.dlgDatos?.nombre || ""), clase_id = +S.dlgDatos?.clase;
+    if (!nombre) return toast("Escríbelo como «Apellidos, Nombre»");
+    const cambios = {};
+    if (nombre !== al.nombre) cambios.nombre = nombre;
+    if (clase_id && clase_id !== al.clase_id) Object.assign(cambios, { clase_id, orden: 999 });
+    if (!Object.keys(cambios).length) return;
+    try {
+      await api.actualizarAlumno(al.id, cambios); await recargarDatos();
+      toast(cambios.clase_id ? `Cambiado/a a ${S.clase.get(clase_id).nombre}` : "Datos actualizados");
+    } catch (err) { fallo(err); }
   }
 
   function pintarVistaPrevia() {
@@ -952,7 +1075,7 @@
     if (r !== "crear") return;
     try {
       await api.crearCurso(nombre, cl);
-      A.importadas = null; $("#admVista").innerHTML = "";
+      cerrarNuevoCurso();
       await recargarDatos();
       toast(`Curso ${nombre} creado`);
     } catch (e) { fallo(e); }

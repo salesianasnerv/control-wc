@@ -45,9 +45,17 @@ button, input, select { font: inherit; }
 .usuario a { color: var(--azul); font-weight: 600; text-decoration: none; white-space: nowrap; }
 .usuario a:hover { text-decoration: underline; }
 nav { position: sticky; top: 0; z-index: 8; display: flex; gap: 2px; flex-wrap: wrap; padding: 0 8px; background: var(--panel); border-bottom: 1px solid var(--borde); }
-nav button { font: inherit; border: 0; background: none; padding: 13px 14px; font-size: 15px; color: var(--suave); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
-nav button:hover { color: var(--azul); }
-nav button.activa { color: var(--azul); border-bottom-color: var(--verde); font-weight: 600; }
+nav > button, .menu-g > button { font: inherit; border: 0; background: none; padding: 13px 14px; font-size: 15px; color: var(--suave); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+nav > button:hover, .menu-g > button:hover { color: var(--azul); }
+nav > button.activa, .menu-g > button.activa { color: var(--azul); border-bottom-color: var(--verde); font-weight: 600; }
+.menu-g { position: relative; }
+.menu-g > button::after { content: ""; display: inline-block; width: 6px; height: 6px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin: 0 0 3px 8px; opacity: .7; }
+.desplegable { display: none; position: absolute; top: 100%; left: 0; min-width: 250px; background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; box-shadow: var(--sombra), 0 12px 30px -10px rgba(0,0,0,.18); padding: 6px; z-index: 9; }
+.menu-g.abierto .desplegable { display: block; }
+@media (hover: hover) { .menu-g:hover .desplegable { display: block; } }
+.desplegable button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: none; padding: 9px 10px; border-radius: 8px; cursor: pointer; font: inherit; color: var(--texto); }
+.desplegable button:hover, .desplegable button.activo { background: rgba(0, 154, 187, .12); color: var(--azul); }
+.desplegable svg { width: 19px; height: 19px; color: var(--c, var(--azul)); flex: none; }
 
 .demo { background: var(--aviso-bg); color: var(--aviso); padding: 8px 16px; font-size: 13px; }
 .enlace { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font-size: 13px; }
@@ -141,7 +149,7 @@ dialog::backdrop { background: rgba(15, 20, 30, .45); }
 
 @media (max-width: 600px) {
   .marca .logo { height: 32px; } .marca h1 { font-size: 16px; padding-left: 10px; } .marca { gap: 10px; }
-  nav button { padding: 12px 10px; font-size: 14px; }
+  nav > button, .menu-g > button { padding: 12px 10px; font-size: 14px; } .menu-g:last-child .desplegable { left: auto; right: 0; }
   .rejilla { grid-template-columns: 1fr 1fr; }
   .filtros { grid-template-columns: 1fr 1fr; }
 }
@@ -207,3 +215,10 @@ h2.etapa::before { content: ""; width: 6px; height: 22px; border-radius: 3px; ba
 .instalar-portada { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--azul); }
 .pasos { padding-left: 20px; } .pasos li { margin: 6px 0; }
 @media (max-width: 600px) { .clases-grid { grid-template-columns: 1fr 1fr; } .clase-btn .cn { font-size: 17px; } }
+.clase-edit { margin: 4px 0 16px; padding-bottom: 16px; border-bottom: 1px solid var(--borde); }
+
+/* Administración por apartados */
+.nuevo-curso { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--borde); }
+.nuevo-curso h3 { margin: 0 0 4px; color: var(--azul); }
+.acciones-fila { text-align: right; white-space: nowrap; }
+.n-orden { width: 2.5em; color: var(--suave); }
