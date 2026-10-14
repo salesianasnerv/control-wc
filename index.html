@@ -64,7 +64,7 @@
     <section id="vLogin" class="login" hidden>
       <div class="tarjeta">
         <img class="logo" src="logo.svg" alt="Salesianas Nervión">
-        <span class="eyebrow">Profesorado · Curso 2026-2027</span>
+        <span class="eyebrow" data-curso>Curso 2026-2027</span><script>/* Curso escolar: cambia solo cada 1 de septiembre */document.querySelectorAll("[data-curso]").forEach(function(e){var d=new Date(),y=d.getFullYear()-(d.getMonth()<8?1:0);e.textContent="Curso "+y+"-"+(y+1);});</script>
         <h1>Control de baños</h1>
         <p>Pulsa el botón y entra con tu cuenta del colegio <strong>@salesianas.org</strong>.</p>
         <button id="btnLogin" class="btn primario grande btn-ms" type="button">
