@@ -306,7 +306,7 @@ h2.etapa::before { content: ""; width: 6px; height: 22px; border-radius: 3px; ba
 .sesion-salir { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
   border: 1px solid rgba(180, 190, 0, .7); background: var(--panel); color: #6b7200; font: inherit; font-size: 13px; font-weight: 600; }
 .sesion-salir:hover { background: #b4be00; border-color: #b4be00; color: #fff; }
-.sesion + .presenta { padding-top: 8px; }
+.sesion:not([hidden]) + .presenta { padding-top: 8px; }
 :root[data-theme="dark"] .sesion-salir, :root[data-theme="dark"] .sesion-nombre svg { color: #cdd640; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sesion-salir, :root:not([data-theme="light"]) .sesion-nombre svg { color: #cdd640; } }
 .sesion { padding: 8px 16px 0; }
