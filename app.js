@@ -215,6 +215,7 @@
   async function iniciar() {
     $("#demoAviso").hidden = !DEMO;
     $("#btnLogin").onclick = () => api.login().catch((e) => ($("#loginError").textContent = e.message));
+    $("#btnAdminFranja").onclick = $("#btnLogin").onclick;
     try {
       S.user = await api.sesion();
     } catch (e) {
@@ -222,16 +223,18 @@
     }
     if (!S.user) { document.body.classList.add("sin-sesion"); $("#vLogin").hidden = false; return; }
 
-    $("#usuario").innerHTML = `<span>${esc(S.user.nombre)}</span>` +
-      `<a href="#" class="instalar" hidden>Instalar app</a>` +
-      (DEMO ? "" : `<a href="#" id="btnSalir">Salir</a>`);
-    $("#btnSalir")?.addEventListener("click", (e) => { e.preventDefault(); api.logout(); });
+    $("#usuario").textContent = ` · ${S.user.nombre}`;
+    $("#btnSalir").hidden = DEMO;
+    $("#btnSalir").onclick = () => api.logout();
     pintarInstalar();
     $("#tabs").hidden = false;
 
     try { aplicarDatos(await api.datos()); } catch (e) { fallo(e); return; }
 
     $("#tabAdmin").hidden = !S.user.admin;
+    // Botón «Administración» de la franja: solo para cuentas autorizadas
+    $("#btnAdminFranja").hidden = !S.user.admin;
+    $("#btnAdminFranja").onclick = () => mostrar("admin");
     $$("#tabs > button[data-vista]").forEach((b) => (b.onclick = () => mostrar(b.dataset.vista)));
     // Menú desplegable «Administración» (como en la Biblioteca)
     const menu = $("#tabAdmin");
@@ -1085,7 +1088,8 @@
   let instalar = null;
   const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const enApp = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  function pintarInstalar() { $$(".instalar").forEach((el) => (el.hidden = !instalar)); }
+  // El botón de la franja se ve siempre (salvo dentro de la app ya instalada); si el navegador no ofrece instalarla, explica cómo.
+  function pintarInstalar() { $$(".instalar").forEach((el) => (el.hidden = el.matches(".franja .instalar") ? enApp() : !instalar)); }
   async function instalarApp() {
     if (instalar === "ios") {
       dialogo(`<h2>Instalar la app</h2>
@@ -1094,7 +1098,10 @@
         <div class="dlg-botones"><button class="btn primario" value="">Entendido</button></div>`);
       return;
     }
-    if (instalar) { instalar.prompt(); await instalar.userChoice.catch(() => {}); instalar = null; pintarInstalar(); }
+    if (instalar) { instalar.prompt(); await instalar.userChoice.catch(() => {}); instalar = null; pintarInstalar(); return; }
+    dialogo(`<h2>Instalar la app</h2>
+      <p>Abre el menú del navegador (⋮ o ⋯) y elige <b>«Instalar aplicación»</b> o <b>«Añadir a pantalla de inicio»</b>.</p>
+      <div class="dlg-botones"><button class="btn primario" value="">Entendido</button></div>`);
   }
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); instalar = e; pintarInstalar(); });

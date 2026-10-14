@@ -165,7 +165,7 @@ dialog::backdrop { background: rgba(15, 20, 30, .45); }
 .barra.click:hover { background: var(--neutro-bg); }
 .nota { display: block; color: var(--suave); font-size: 12px; margin-top: 6px; }
 .caja.destacada { border: 2px solid var(--primario); margin-bottom: 18px; }
-.sin-sesion .top, .sin-sesion nav { display: none; }
+.sin-sesion nav { display: none; }
 
 /* Administración */
 .admin { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 18px; }
@@ -225,3 +225,57 @@ h2.etapa::before { content: ""; width: 6px; height: 22px; border-radius: 3px; ba
 
 /* Pie de página (igual que en el portal de utilidades) */
 .pie { text-align: center; color: var(--suave); font-size: 13px; padding: 20px 16px; margin-top: 24px; border-top: 1px solid var(--borde); }
+
+/* ─── Portada de la web (como en el portal de utilidades): cabecera solo con el logo, franja verde
+   con el curso y los botones, presentación con cartel, etiquetas, descripción y cajas desplegables ─── */
+.top.solo-logo { justify-content: center; border-bottom: 0; padding: 12px 16px; }
+.top.solo-logo .logo { height: 64px; }
+.franja { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 8px 16px; background: #b4be00; color: #fff; }
+.franja .quien { font-size: 13px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.franja-acc { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.franja-btn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.75); background: rgba(255,255,255,.14); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.2);
+  font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.franja-btn:hover { background: #fff; color: #4d5300; text-shadow: none; }
+.franja-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.presenta { width: 100%; max-width: 1100px; margin: 0 auto; padding: 22px 16px; }
+.presenta-sup { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+.cartel { display: inline-block; background: rgba(180, 190, 0, .16); color: #6b7200; font-weight: 700; font-size: .78rem;
+  letter-spacing: .06em; text-transform: uppercase; padding: .3rem .8rem; border-radius: 999px; }
+.presenta-sup .etqs { display: flex; flex-wrap: wrap; gap: 6px; }
+.presenta-sup .etq { display: inline-block; font-size: .75rem; font-weight: 600; color: #6b7200; background: rgba(180, 190, 0, .16); padding: 2px 9px; border-radius: 999px; }
+.presenta-cab { display: flex; align-items: center; gap: 16px; }
+.presenta-ico { flex: none; width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center;
+  background: rgba(180, 190, 0, .16); color: #6b7200; }
+.presenta-ico svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.presenta h1 { margin: 0 0 4px; font-size: 1.6rem; line-height: 1.2; color: #8a9400; }
+.presenta-cab p { margin: 0; color: var(--suave); max-width: 70ch; }
+.presenta-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 18px; align-items: start; }
+.info-bloque { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); }
+.info-bloque summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; font-weight: 700; }
+.info-bloque summary::-webkit-details-marker { display: none; }
+.info-bloque summary > svg { width: 20px; height: 20px; flex: none; fill: none; stroke: #6b7200; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.info-bloque summary > span { flex: 1; min-width: 0; }
+.info-bloque summary small { display: block; font-weight: 500; font-size: .8rem; color: var(--suave); }
+.info-bloque summary::after { content: ""; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--suave); border-bottom: 2px solid var(--suave);
+  transform: rotate(45deg); margin: -4px 4px 0; transition: transform .15s; }
+.info-bloque[open] summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.info-bloque summary:hover { color: #6b7200; }
+.info-bloque ul { margin: 0; padding: 0 16px 14px 34px; color: var(--suave); font-size: .9rem; }
+.info-bloque li + li { margin-top: 3px; }
+.info-bloque b { color: var(--texto); font-weight: 600; }
+.presenta + nav { border-top: 2px solid rgba(180, 190, 0, .55); }
+.login { min-height: 0; padding: 12px 0 32px; }
+.tarjeta h2 { margin: 0 0 .4rem; color: var(--azul); font-size: 1.4rem; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .presenta h1,
+  :root:not([data-theme="light"]) .cartel, :root:not([data-theme="light"]) .presenta-sup .etq,
+  :root:not([data-theme="light"]) .presenta-ico { color: #cdd640; } :root:not([data-theme="light"]) .info-bloque summary > svg { stroke: #cdd640; } }
+:root[data-theme="dark"] .presenta h1, :root[data-theme="dark"] .cartel, :root[data-theme="dark"] .presenta-sup .etq,
+:root[data-theme="dark"] .presenta-ico { color: #cdd640; }
+:root[data-theme="dark"] .info-bloque summary > svg { stroke: #cdd640; }
+@media (max-width: 560px) {
+  .top.solo-logo .logo { height: 54px; }
+  .presenta-cab { align-items: flex-start; } .presenta h1 { font-size: 1.3rem; } .presenta-ico { width: 46px; height: 46px; }
+  .presenta-info { grid-template-columns: 1fr; }
+}
