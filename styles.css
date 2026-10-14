@@ -279,3 +279,34 @@ h2.etapa::before { content: ""; width: 6px; height: 22px; border-radius: 3px; ba
   .presenta-cab { align-items: flex-start; } .presenta h1 { font-size: 1.3rem; } .presenta-ico { width: 46px; height: 46px; }
   .presenta-info { grid-template-columns: 1fr; }
 }
+
+/* Presentación a todo el ancho (para que la línea de separación llegue de lado a lado) y separador antes del acceso */
+.presenta { max-width: none; padding: 22px max(16px, calc((100% - 1100px) / 2 + 16px)); }
+.sin-sesion .presenta { border-bottom: 2px solid rgba(180, 190, 0, .55); }
+.sin-sesion .login { padding-top: 28px; }
+
+/* Etiqueta de aviso junto al título de una caja */
+.aviso-etq { display: inline-block; margin-left: 6px; vertical-align: 1px; font-style: normal; font-size: .7rem; font-weight: 700;
+  color: var(--aviso); background: var(--aviso-bg); padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+
+/* Botón «Entrar con Microsoft 365» en el verde de la franja */
+#btnLogin { background: #b4be00; border-color: #b4be00; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.2); box-shadow: 0 6px 16px -6px rgba(140, 150, 0, .6); }
+#btnLogin:hover { background: #939b00; border-color: #939b00; }
+.tarjeta h2 { color: #8a9400; }
+:root[data-theme="dark"] .tarjeta h2 { color: #cdd640; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tarjeta h2 { color: #cdd640; } }
+.aviso-etq { vertical-align: 3px; line-height: 1.5; }
+
+/* Nombre de quien ha entrado y «Salir», debajo de la franja y a la derecha */
+.sesion { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px max(16px, calc((100% - 1100px) / 2 + 16px)) 0; font-size: 13px; }
+.sesion-nombre { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--texto); }
+.sesion-nombre svg, .sesion-salir svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sesion-nombre svg { color: #8a9400; }
+.sesion-salir { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(180, 190, 0, .7); background: var(--panel); color: #6b7200; font: inherit; font-size: 13px; font-weight: 600; }
+.sesion-salir:hover { background: #b4be00; border-color: #b4be00; color: #fff; }
+.sesion + .presenta { padding-top: 8px; }
+:root[data-theme="dark"] .sesion-salir, :root[data-theme="dark"] .sesion-nombre svg { color: #cdd640; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sesion-salir, :root:not([data-theme="light"]) .sesion-nombre svg { color: #cdd640; } }
+.sesion { padding: 8px 16px 0; }

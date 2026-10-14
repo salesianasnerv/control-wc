@@ -223,7 +223,9 @@
     }
     if (!S.user) { document.body.classList.add("sin-sesion"); $("#vLogin").hidden = false; return; }
 
-    $("#usuario").textContent = ` · ${S.user.nombre}`;
+    // Nombre de quien ha entrado y botón «Salir», justo debajo de la franja
+    $("#usuario").textContent = S.user.nombre;
+    $("#sesion").hidden = false;
     $("#btnSalir").hidden = DEMO;
     $("#btnSalir").onclick = () => api.logout();
     pintarInstalar();

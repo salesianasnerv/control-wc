@@ -40,12 +40,15 @@
     <div class="marca"><img class="logo" src="logo.svg" alt="Salesianas Nervión"></div>
   </header>
   <div class="franja">
-    <span class="quien"><span data-curso>Curso 2026-2027</span><span id="usuario"></span></span>
+    <span class="quien" data-curso>Curso 2026-2027</span>
     <div class="franja-acc">
       <button type="button" class="franja-btn instalar" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Instalar como app</button>
       <button type="button" class="franja-btn" id="btnAdminFranja"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Administración</button>
-      <button type="button" class="franja-btn" id="btnSalir" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg>Salir</button>
     </div>
+  </div>
+  <div class="sesion" id="sesion" hidden>
+    <span class="sesion-nombre"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span id="usuario"></span></span>
+    <button type="button" class="sesion-salir" id="btnSalir" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg>Salir</button>
   </div>
   <script>/* Curso escolar: cambia solo cada 1 de septiembre */document.querySelectorAll("[data-curso]").forEach(function(e){var d=new Date(),y=d.getFullYear()-(d.getMonth()<8?1:0);e.textContent="Curso "+y+"-"+(y+1);});</script>
   <section class="presenta">
@@ -70,7 +73,7 @@
         </ul>
       </details>
       <details class="info-bloque">
-        <summary><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Administración <small>Acceso: inicio de sesión con Microsoft 365 (@salesianas.org), solo cuentas autorizadas</small></span></summary>
+        <summary><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Administración <em class="aviso-etq">Solo cuentas autorizadas</em> <small>Acceso: inicio de sesión con Microsoft 365 (@salesianas.org)</small></span></summary>
         <ul>
           <li><b>Cursos académicos:</b> crear cada curso a partir de las listas de clase de Séneca y archivar los anteriores.</li>
           <li><b>Alumnado:</b> altas, bajas y cambios de clase, y tutor/a de cada grupo.</li>
