@@ -128,7 +128,9 @@
   const ok = (r) => { if (r.error) throw r.error; return r.data; };
   const sbApi = {
     async sesion() {
-      const { data: { session } } = await sb.auth.getSession();
+      let { data: { session } } = await sb.auth.getSession();
+      // Abierta desde la app de Teams: entra sola con la cuenta de Teams
+      if (!session && await window.TeamsSSO?.entrar(sb)) ({ data: { session } } = await sb.auth.getSession());
       if (!session) return null;
       const u = session.user, email = (u.email || "").toLowerCase();
       if (!email.endsWith("@" + CFG.dominio)) {
@@ -140,6 +142,7 @@
       return { email, nombre: u.user_metadata?.full_name || u.user_metadata?.name || email, admin: !adm.error && adm.data.length > 0 };
     },
     async login() {
+      if (await window.TeamsSSO?.entrar(sb)) return location.reload();
       ok(await sb.auth.signInWithOAuth({ provider: "azure", options: { scopes: "email profile", redirectTo: location.origin + location.pathname } }));
     },
     async logout() { await sb.auth.signOut(); location.reload(); },
