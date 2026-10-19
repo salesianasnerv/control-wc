@@ -133,7 +133,7 @@
       if (!session && await window.TeamsSSO?.entrar(sb)) ({ data: { session } } = await sb.auth.getSession());
       if (!session) return null;
       const u = session.user, email = (u.email || "").toLowerCase();
-      if (!email.endsWith("@" + CFG.dominio)) {
+      if (![CFG.dominio, ...(CFG.dominiosExtra || [])].some((d) => email.endsWith("@" + d))) {
         await sb.auth.signOut();
         throw new Error(`Solo se permite el acceso con cuentas @${CFG.dominio}.`);
       }
@@ -950,7 +950,7 @@
     pintarAdmin();
   }
 
-  const esCuentaColegio = (email) => new RegExp(`^[^@\\s]+@${CFG.dominio.replace(".", "\\.")}$`).test(email);
+  const esCuentaColegio = (email) => /^[^@\s]+@[^@\s]+$/.test(email) && [CFG.dominio, ...(CFG.dominiosExtra || [])].some((d) => email.endsWith("@" + d));
   // "garcía lópez ,ana" → "García López, Ana"; null si no tiene la forma «Apellidos, Nombre»
   function normalizarNombre(txt) {
     const n = txt.trim().replace(/\s+/g, " ").replace(/\s*,\s*/, ", ");

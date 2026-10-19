@@ -6,6 +6,8 @@ window.APP_CONFIG = {
   supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibGF5amFrbmhmeGllcWJ6cmxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMjg0ODEsImV4cCI6MjEwNjgwNDQ4MX0.K2iWyQAt9upNBXUhdZuV-Nle9fkCMYgQ6jTBBO0MluE",
 
   dominio: "salesianas.org",   // solo pueden entrar cuentas de este dominio
+
+  dominiosExtra: ["salesianes.org"],  // otros dominios del mismo Microsoft 365 del colegio
   margenMin: 10,               // minutos no permitidos al principio y al final de cada clase
   avisoMin: 10,                // en "Fuera ahora" se marca en rojo si lleva más de estos minutos
   inicioCurso: "09-01",        // mes-día en que empieza el curso (para el filtro "Todo el curso")
