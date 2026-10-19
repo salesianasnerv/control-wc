@@ -1,3 +1,8 @@
+-- ⚠ YA EJECUTADO (comprobado en Supabase el 19-10-2026). NO VOLVER A EJECUTAR.
+--   Desde el 18-10-2026 «administradores» y «clases» son vistas de la base de datos común
+--   (permisos y grupos) y este archivo daría error. Las reglas y las cuentas ya están allí.
+--   Se guarda solo como historial.
+
 -- Control de baños · gestionar desde la web las cuentas de administración y las clases
 -- Ejecutar una vez en Supabase → SQL Editor (después de cursos.sql).
 -- A partir de aquí, todo se hace en la pestaña «Administración» de la web.
