@@ -31,12 +31,11 @@ Con `supabaseUrl` vacío en `config.js`, la web funciona sin servidor: guarda lo
 - Cada registro queda firmado con el correo de quien lo hizo y no se puede falsear. Solo quien creó un registro puede borrarlo. Cualquier profesor/a puede marcar la vuelta.
 - Al acabar el curso, conviene descargar los informes que se quieran conservar y vaciar la tabla `salidas`.
 
-## Nuevo curso o cambios de lista (pestaña «Administración»)
+## Pestaña «Administración»
 
 Solo la ven las cuentas de la tabla `administradores` (ahora, mangeles.chavez@salesianas.org).
 
-- **Curso nuevo (cada septiembre):** descarga de Séneca los PDF «Lista de clase» de todos los grupos. En Administración, escribe el nombre del curso (por ejemplo, `2027-2028`) y arrastra los PDF. Revisa el resumen (puedes corregir los nombres de las clases) y pulsa «Crear curso». El curso anterior queda archivado: sus salidas se consultan en Informes eligiendo el curso.
-- **Durante el curso:** altas, bajas y cambios de clase de alumnos sueltos, en la misma pestaña.
+- **Curso nuevo, listas y tutores:** desde el 25-10-2026 se gestionan en el **panel de Administración del portal** (claustro-utilidades.vercel.app/administracion.html → «Cursos y listas» y «Tutorías»), para todas las webs a la vez. Esta web solo los lee. Las salidas de cursos anteriores se siguen consultando en Informes eligiendo el curso.
 - **Dar permiso a otra cuenta:** en Supabase → SQL Editor:
   `insert into administradores (email) values ('nombre.apellido@salesianas.org');`
 

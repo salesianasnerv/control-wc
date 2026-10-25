@@ -77,8 +77,7 @@
       <details class="info-bloque">
         <summary><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Administración <em class="aviso-etq">Solo cuentas autorizadas</em> <small>Acceso: inicio de sesión con Microsoft 365 (@salesianas.org)</small></span></summary>
         <ul>
-          <li><b>Cursos académicos:</b> crear cada curso a partir de las listas de clase de Séneca y archivar los anteriores.</li>
-          <li><b>Alumnado:</b> altas, bajas y cambios de clase, y tutor/a de cada grupo.</li>
+          <li><b>Cursos y listas:</b> se gestionan en el panel de Administración del portal (curso nuevo, altas y bajas, tutores).</li>
           <li><b>Cuentas de administración:</b> dar o quitar este acceso.</li>
         </ul>
       </details>
@@ -90,8 +89,7 @@
     <div class="menu-g" id="tabAdmin" hidden>
       <button type="button" data-menu="admin" aria-haspopup="true">Administración</button>
       <div class="desplegable">
-        <button type="button" data-admin="cursos" style="--c:#009abb"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Cursos académicos</button>
-        <button type="button" data-admin="alumnado" style="--c:#8a9400"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.7 3.1 2.4 3.5 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Alumnado</button>
+        <button type="button" data-admin="cursos" style="--c:#009abb"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Cursos y listas</button>
         <button type="button" data-admin="cuentas" style="--c:#ee712a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Cuentas de administración</button>
       </div>
     </div>
@@ -188,55 +186,18 @@
 
   <!-- Administración (solo cuentas autorizadas) -->
   <section id="vAdmin" class="admin" hidden>
-    <!-- Cursos académicos -->
+    <!-- Cursos y listas: se gestionan en el panel del portal -->
     <section class="caja admin-bloque" data-sec="cursos">
-      <h2>Cursos académicos</h2>
-      <p class="ayuda">El curso actual es el que aparece en Registrar. Los anteriores quedan archivados: sus salidas se consultan en Informes y su alumnado en «Alumnado».</p>
+      <h2>Cursos y listas</h2>
+      <p class="ayuda">El curso nuevo, las listas de alumnado (altas y bajas) y los tutores se gestionan en el <strong>panel de Administración del portal</strong>, para todas las webs a la vez. Lo que se cambia allí aparece aquí al momento.</p>
+      <div class="acciones"><a class="btn primario" href="https://claustro-utilidades.vercel.app/administracion.html" target="_blank" rel="noopener" style="text-decoration:none">Abrir el panel de Administración</a></div>
       <div id="admCursos"></div>
-      <div class="acciones"><button class="btn primario" id="btnNuevoCurso" type="button">+ Crear nuevo curso académico</button></div>
-
-      <div id="admNuevo" class="nuevo-curso" hidden>
-        <h3>Crear nuevo curso académico</h3>
-        <p class="ayuda">Cada septiembre: descarga de Séneca los PDF de <strong>«Lista de clase»</strong> de todos los grupos, escribe el nombre del curso y arrástralos aquí. Antes de crear nada verás un resumen para revisarlo.</p>
-        <div class="fila">
-          <label class="campo">Nombre del curso <input id="admNombre" placeholder="2027-2028" inputmode="numeric" autocomplete="off"></label>
-        </div>
-        <label class="soltar" id="admSoltar">
-          <input type="file" id="admPdf" accept="application/pdf,.pdf" multiple hidden>
-          <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
-          <span><strong>Arrastra aquí los PDF de Séneca</strong> o pulsa para elegirlos</span>
-        </label>
-        <div id="admVista"></div>
-        <div class="acciones"><button class="btn" id="btnCerrarNuevo" type="button">Cerrar</button></div>
-      </div>
-    </section>
-
-    <!-- Alumnado -->
-    <section class="caja admin-bloque" data-sec="alumnado">
-      <h2>Alumnado</h2>
-      <p class="ayuda">Elige el curso académico y la clase para ver su tutor/a y su alumnado. Las salidas ya registradas no se pierden nunca.</p>
-      <div class="fila">
-        <label class="campo">Curso académico <select id="admCursoSel"></select></label>
-        <label class="campo crece">Clase <select id="admClase"></select></label>
-      </div>
-      <div id="admClaseDetalle" hidden>
-        <form id="admClaseForm" class="fila alta clase-edit">
-          <label class="campo">Nombre de la clase <input name="nombre" autocomplete="off" required></label>
-          <label class="campo crece">Tutor/a <input name="tutor" placeholder="Apellidos, Nombre" autocomplete="off"></label>
-          <button class="btn">Guardar</button>
-        </form>
-        <div id="admAlumnos"></div>
-        <form id="admAlta" class="fila alta">
-          <label class="campo crece">Añadir alumno/a a esta clase <input name="nombre" placeholder="Apellidos, Nombre" autocomplete="off" required></label>
-          <button class="btn primario">Añadir</button>
-        </form>
-      </div>
     </section>
 
     <!-- Cuentas de administración -->
     <section class="caja admin-bloque" data-sec="cuentas">
       <h2>Cuentas de administración</h2>
-      <p class="ayuda">Estas cuentas ven el menú Administración: pueden crear cursos, gestionar el alumnado, editar las clases y dar o quitar este acceso. El resto del profesorado solo ve Registrar e Informes.</p>
+      <p class="ayuda">Estas cuentas ven el menú Administración y pueden dar o quitar este acceso. El resto del personal de ESO y Bachillerato solo ve Registrar e Informes.</p>
       <div id="admCuentas"></div>
       <form id="admCuentaForm" class="fila alta">
         <label class="campo crece">Añadir cuenta <input name="email" type="email" placeholder="nombre.apellido@salesianas.org" autocomplete="off" required></label>

@@ -81,30 +81,6 @@
     async login() {},
     async logout() { location.reload(); },
     async datos() { return this._db(); },
-    async crearCurso(nombre, clases) {
-      const d = this._db();
-      if (d.cursos.some((c) => c.nombre === nombre)) throw new Error(`Ya existe el curso ${nombre}`);
-      d.cursos.forEach((c) => (c.activo = false));
-      const cid = Math.max(0, ...d.cursos.map((c) => c.id)) + 1;
-      d.cursos.push({ id: cid, nombre, activo: true });
-      let clid = Math.max(0, ...d.clases.map((c) => c.id)), aid = Math.max(0, ...d.alumnos.map((a) => a.id));
-      clases.forEach((c, i) => {
-        d.clases.push({ id: ++clid, curso_id: cid, nombre: c.nombre, tutor: c.tutor, orden: i + 1 });
-        c.alumnos.forEach((n, j) => d.alumnos.push({ id: ++aid, clase_id: clid, nombre: n, orden: j + 1, activo: true }));
-      });
-      this._dbSet(d);
-    },
-    async activarCurso(id) { const d = this._db(); d.cursos.forEach((c) => (c.activo = c.id === id)); this._dbSet(d); },
-    async altaAlumno(claseId, nombre) {
-      const d = this._db(), orden = Math.max(0, ...d.alumnos.filter((a) => a.clase_id === claseId).map((a) => a.orden)) + 1;
-      d.alumnos.push({ id: Math.max(0, ...d.alumnos.map((a) => a.id)) + 1, clase_id: claseId, nombre, orden, activo: true }); this._dbSet(d);
-    },
-    async actualizarAlumno(id, cambios) { const d = this._db(); Object.assign(d.alumnos.find((a) => a.id === id), cambios); this._dbSet(d); },
-    async editarClase(id, cambios) {
-      const d = this._db(), c = d.clases.find((x) => x.id === id);
-      if (cambios.nombre && d.clases.some((x) => x.id !== id && x.curso_id === c.curso_id && x.nombre === cambios.nombre)) throw new Error("Ya hay una clase con ese nombre en este curso");
-      Object.assign(c, cambios); this._dbSet(d);
-    },
     async admins() { const d = this._db(); return (d.admins ||= [S.user.email]).map((email) => ({ email })); },
     async addAdmin(email) { const d = this._db(); d.admins ||= [S.user.email]; if (!d.admins.includes(email)) d.admins.push(email); this._dbSet(d); },
     async delAdmin(email) { const d = this._db(); d.admins = (d.admins || []).filter((e) => e !== email); this._dbSet(d); },
@@ -158,18 +134,6 @@
         if (d.length < 1000) break;
       }
       return { cursos: ok(cu), clases: ok(cl), alumnos };
-    },
-    async crearCurso(nombre, clases) { ok(await sb.rpc("crear_curso", { p_nombre: nombre, p_clases: clases })); },
-    async activarCurso(id) { ok(await sb.rpc("activar_curso", { p_id: id })); },
-    async altaAlumno(claseId, nombre) {
-      const orden = Math.max(0, ...S.alumnos.filter((a) => a.clase_id === claseId).map((a) => a.orden)) + 1;
-      ok(await sb.from("alumnos").insert({ clase_id: claseId, nombre, orden }));
-    },
-    async actualizarAlumno(id, cambios) { ok(await sb.from("alumnos").update(cambios).eq("id", id)); },
-    async editarClase(id, cambios) {
-      const r = await sb.from("clases").update(cambios).eq("id", id);
-      if (r.error?.code === "23505") throw new Error("Ya hay una clase con ese nombre en este curso");
-      ok(r);
     },
     async admins() { return ok(await sb.from("administradores").select("email").order("email")); },
     async addAdmin(email) {
@@ -800,129 +764,11 @@
     $("#vInformes").hidden ? refrescarFuera() : cargarInforme();
   }
 
-  // ─── Administración: cursos y alumnado ──────────────────────────────────
-  // Lector de PDF (solo se descarga cuando alguien de administración lo usa)
-  let pdfjsPromesa = null;
-  function cargarPdfJs() {
-    return (pdfjsPromesa ||= new Promise((res, rej) => {
-      const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
-      const sc = Object.assign(document.createElement("script"), { src: base + "pdf.min.js" });
-      sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js"; res(window.pdfjsLib); };
-      sc.onerror = () => { pdfjsPromesa = null; rej(new Error("No se pudo cargar el lector de PDF (¿sin conexión?)")); };
-      document.head.appendChild(sc);
-    }));
-  }
-
-  // Nombres de Séneca → nombres más claros (se pueden corregir en la vista previa)
-  const NOMBRES_SENECA = { "1ºABachSoc": "1º Bach A", "1ºBBachCi": "1º Bach B", "2º Bach HS": "2º Bach A", "2º BACH CyT": "2º Bach B" };
-  const limpiarClase = (s) => NOMBRES_SENECA[s] ||
-    s.replace(/º\s*/, "º ").replace(/\bESO\s*([A-Z])$/i, "ESO $1").replace(/\bBACH\b/i, "Bach").replace(/\s+/g, " ").trim();
-
-  // Lee los PDF «Lista de clase» de Séneca: una clase por página
-  async function leerListasSeneca(file) {
-    const lib = await cargarPdfJs();
-    const pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
-    const clases = [];
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const tc = await (await pdf.getPage(p)).getTextContent();
-      const filas = [];
-      for (const it of tc.items) {
-        if (!it.str.trim() || it.transform[1] || it.transform[2]) continue;   // vacío o texto girado del margen
-        const y = it.transform[5];
-        let f = filas.find((f) => Math.abs(f.y - y) <= 2);
-        if (!f) filas.push((f = { y, items: [] }));
-        f.items.push({ x: it.transform[4], s: it.str });
-      }
-      const lineas = filas.sort((a, b) => b.y - a.y)
-        .map((f) => f.items.sort((a, b) => a.x - b.x).map((i) => i.s).join(" ").replace(/\s+/g, " ").trim());
-      const texto = lineas.join("\n");
-      const m = texto.match(/LISTA DE CLASE DE\s+(.+?)\s*\(/);
-      if (!m) continue;
-      const tutor = (texto.match(/TUTOR\/A\s*:\s*(.+)/) || [])[1]?.trim() || "";
-      const alumnos = [];
-      let dentro = false;
-      for (const l of lineas) {
-        if (/N[º°o]\s*orden/i.test(l)) { dentro = true; continue; }
-        if (!dentro) continue;
-        if (/^\S+,\s*\d{2}\/\d{2}\/\d{4}$|^P[áa]g\./.test(l)) break;   // "Sevilla, 13/09/2026" o "Pág. 1 de 4"
-        const mm = l.match(/^(\d{1,2})\s*(.+,.+)$/) || l.match(/^(.+,.+?)\s*(\d{1,2})$/);
-        if (mm) alumnos.push((/^\d/.test(mm[1]) ? mm[2] : mm[1]).trim());
-      }
-      const previa = clases.find((c) => c.original === m[1].trim());   // clase que sigue en otra página
-      if (previa) previa.alumnos.push(...alumnos);
-      else clases.push({ original: m[1].trim(), nombre: limpiarClase(m[1].trim()), tutor, alumnos });
-    }
-    return clases;
-  }
-
-  const A = { importadas: null };   // estado de la importación en curso
+  // ─── Administración ─────────────────────────────────────────────────────
+  // Los cursos, las listas de alumnado y los tutores se gestionan desde el 25-10-2026 en el panel de
+  // Administración del portal (claustro-utilidades.vercel.app/administracion.html), para todas las webs.
 
   function prepararAdmin() {
-    // ── Cursos académicos
-    const zona = $("#admSoltar"), input = $("#admPdf");
-    const procesar = async (files) => {
-      const pdfs = [...files].filter((f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
-      if (!pdfs.length) return toast("Elige los PDF de «Lista de clase» de Séneca");
-      $("#admVista").innerHTML = `<div class="vacio">Leyendo ${pdfs.length} PDF…</div>`;
-      try {
-        A.importadas = [];
-        for (const f of pdfs) A.importadas.push(...(await leerListasSeneca(f)));
-        pintarVistaPrevia();
-      } catch (e) { $("#admVista").innerHTML = ""; fallo(e); }
-    };
-    input.onchange = () => { procesar(input.files); input.value = ""; };
-    zona.ondragover = (e) => { e.preventDefault(); zona.classList.add("encima"); };
-    zona.ondragleave = () => zona.classList.remove("encima");
-    zona.ondrop = (e) => { e.preventDefault(); zona.classList.remove("encima"); procesar(e.dataTransfer.files); };
-    $("#btnNuevoCurso").onclick = () => { $("#admNuevo").hidden = false; $("#btnNuevoCurso").hidden = true; $("#admNuevo").scrollIntoView({ behavior: "smooth" }); };
-    $("#btnCerrarNuevo").onclick = cerrarNuevoCurso;
-
-    $("#admVista").addEventListener("input", (e) => {
-      const i = e.target.dataset.nombreClase;
-      if (i != null) { A.importadas[+i].nombre = e.target.value; avisosVistaPrevia(); }
-    });
-    $("#admVista").addEventListener("click", async (e) => {
-      const quitar = e.target.closest("[data-quitar-clase]");
-      if (quitar) { A.importadas.splice(+quitar.dataset.quitarClase, 1); pintarVistaPrevia(); return; }
-      if (e.target.closest("#admCancelar")) { A.importadas = null; $("#admVista").innerHTML = ""; return; }
-      if (e.target.closest("#admCrear")) crearCursoNuevo();
-    });
-
-    $("#admCursos").onclick = async (e) => {
-      const ver = e.target.closest("[data-ver-curso]");
-      if (ver) { $("#admCursoSel").value = ver.dataset.verCurso; rellenarClasesAdmin(); mostrar("admin", "alumnado"); return; }
-      const b = e.target.closest("[data-activar]"); if (!b) return;
-      const c = S.cursos.find((x) => x.id == b.dataset.activar);
-      if (!confirm(`¿Volver a poner ${c.nombre} como curso actual?\n\nEn Registrar aparecerá el alumnado de ${c.nombre}.`)) return;
-      try { await api.activarCurso(c.id); await recargarDatos(); toast(`Curso actual: ${c.nombre}`); } catch (err) { fallo(err); }
-    };
-
-    // ── Alumnado
-    $("#admCursoSel").onchange = rellenarClasesAdmin;
-    $("#admClase").onchange = pintarAlumnadoAdmin;
-    $("#admClaseForm").onsubmit = async (e) => {
-      e.preventDefault();
-      const f = e.target, id = +$("#admClase").value;
-      const nombre = f.nombre.value.trim(), tutor = f.tutor.value.trim().replace(/\s*,\s*/, ", ");
-      if (!nombre) return toast("La clase necesita un nombre");
-      try { await api.editarClase(id, { nombre, tutor }); await recargarDatos(); toast("Clase actualizada"); } catch (err) { fallo(err); }
-    };
-    $("#admAlumnos").onclick = async (e) => {
-      const mod = e.target.closest("[data-modificar]");
-      if (mod) return modificarAlumno(S.alumno.get(+mod.dataset.modificar));
-      const b = e.target.closest("[data-baja]"); if (!b) return;
-      const al = S.alumno.get(+b.dataset.baja), activo = al.activo === false;
-      if (!activo && !confirm(`¿Dar de baja a ${nombreLargo(al.nombre)}?\n\nDejará de aparecer en Registrar. Sus salidas se conservan en los informes.`)) return;
-      try { await api.actualizarAlumno(al.id, { activo }); await recargarDatos(); toast(activo ? "Alumno/a reactivado/a" : "Baja registrada"); } catch (err) { fallo(err); }
-    };
-    $("#admAlta").onsubmit = async (e) => {
-      e.preventDefault();
-      const nombre = normalizarNombre(e.target.nombre.value);
-      if (!nombre) return toast("Escríbelo como «Apellidos, Nombre»");
-      const claseId = +$("#admClase").value;
-      try { await api.altaAlumno(claseId, nombre); e.target.reset(); await recargarDatos(); toast(`Añadido/a a ${S.clase.get(claseId).nombre}`); } catch (err) { fallo(err); }
-    };
-
     // ── Cuentas de administración
     $("#admCuentas").onclick = async (e) => {
       const q = e.target.closest("[data-quitar-admin]");
@@ -951,40 +797,13 @@
   }
 
   const esCuentaColegio = (email) => /^[^@\s]+@[^@\s]+$/.test(email) && [CFG.dominio, ...(CFG.dominiosExtra || [])].some((d) => email.endsWith("@" + d));
-  // "garcía lópez ,ana" → "García López, Ana"; null si no tiene la forma «Apellidos, Nombre»
-  function normalizarNombre(txt) {
-    const n = txt.trim().replace(/\s+/g, " ").replace(/\s*,\s*/, ", ");
-    return /^[^,]+, [^,]+$/.test(n) ? n : null;
-  }
-
-  function cerrarNuevoCurso() {
-    A.importadas = null; $("#admVista").innerHTML = "";
-    $("#admNuevo").hidden = true; $("#btnNuevoCurso").hidden = false;
-  }
-
   function pintarAdmin() {
     const nAl = (cid) => { const ids = new Set(clasesDe(cid).map((c) => c.id)); return S.alumnos.filter((a) => ids.has(a.clase_id) && a.activo !== false).length; };
-    $("#admCursos").innerHTML = `<table><thead><tr><th>Curso</th><th class="num">Clases</th><th class="num">Alumnado</th><th>Estado</th><th></th></tr></thead><tbody>
+    $("#admCursos").innerHTML = `<table><thead><tr><th>Curso</th><th class="num">Clases</th><th class="num">Alumnado</th><th>Estado</th></tr></thead><tbody>
       ${[...S.cursos].reverse().map((c) => `<tr><td><strong>${esc(c.nombre)}</strong></td><td class="num">${clasesDe(c.id).length}</td><td class="num">${nAl(c.id)}</td>
-        <td>${c.activo ? `<span class="tag-actual">Actual</span>` : `<span class="tag-archivado">Archivado</span>`}</td>
-        <td class="acciones-fila"><button class="btn mini" data-ver-curso="${c.id}">Ver alumnado</button>${c.activo ? "" : ` <button class="btn mini" data-activar="${c.id}">Volver a activar</button>`}</td></tr>`).join("")}
+        <td>${c.activo ? `<span class="tag-actual">Actual</span>` : `<span class="tag-archivado">Archivado</span>`}</td></tr>`).join("")}
       </tbody></table>`;
-    const y = parseInt(S.curso?.nombre, 10) || new Date().getFullYear() - 1;
-    if (!$("#admNombre").value || S.cursos.some((c) => c.nombre === $("#admNombre").value)) $("#admNombre").value = `${y + 1}-${y + 2}`;
-
-    const sc = $("#admCursoSel"), previo = sc.value;
-    sc.innerHTML = [...S.cursos].reverse().map((c) => `<option value="${c.id}">${esc(c.nombre)}${c.activo ? " (actual)" : ""}</option>`).join("");
-    sc.value = S.cursos.some((c) => c.id == previo) ? previo : S.curso?.id;
-    rellenarClasesAdmin(true);
     pintarCuentas();
-  }
-
-  // Lista de clases del curso elegido; el alumnado solo aparece al elegir una
-  function rellenarClasesAdmin(conservar) {
-    const sel = $("#admClase"), previa = sel.value, clases = clasesDe($("#admCursoSel").value);
-    sel.innerHTML = `<option value="">Elige una clase…</option>` + clases.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
-    if (conservar === true && clases.some((c) => c.id == previa)) sel.value = previa;
-    pintarAlumnadoAdmin();
   }
 
   async function pintarCuentas() {
@@ -993,100 +812,6 @@
     $("#admCuentas").innerHTML = `<table><tbody>${lista.map(({ email }) => `<tr><td>${esc(email)}</td>
       <td class="acciones-fila">${email.toLowerCase() === S.user.email ? `<span class="tag-actual">Tú</span>`
         : `<button class="btn mini" data-modificar-admin="${esc(email)}">Modificar</button> <button class="btn mini peligro" data-quitar-admin="${esc(email)}">Quitar</button>`}</td></tr>`).join("")}</tbody></table>`;
-  }
-
-  function pintarAlumnadoAdmin() {
-    const claseId = +$("#admClase").value, cl = S.clase.get(claseId);
-    $("#admClaseDetalle").hidden = !cl;
-    if (!cl) return;
-    const fc = $("#admClaseForm");
-    fc.nombre.value = cl.nombre || ""; fc.tutor.value = cl.tutor || "";
-    const lista = S.alumnos.filter((a) => a.clase_id === claseId);
-    const bajas = lista.filter((a) => a.activo === false).length;
-    $("#admAlumnos").innerHTML = lista.length ? `
-      <p class="ayuda">${lista.length - bajas} alumnos${bajas ? ` · ${bajas} de baja` : ""}</p>
-      <table><tbody>
-      ${lista.map((a, i) => `<tr class="${a.activo === false ? "de-baja" : ""}"><td class="num n-orden">${i + 1}</td><td>${esc(a.nombre)}${a.activo === false ? ' <span class="tag">baja</span>' : ""}</td>
-        <td class="acciones-fila">${a.activo === false ? "" : `<button class="btn mini" data-modificar="${a.id}">Modificar</button> `}<button class="btn mini${a.activo === false ? "" : " peligro"}" data-baja="${a.id}">${a.activo === false ? "Reactivar" : "Dar de baja"}</button></td></tr>`).join("")}
-      </tbody></table>` : `<div class="vacio">Esta clase no tiene alumnado.</div>`;
-  }
-
-  async function modificarAlumno(al) {
-    const cl = S.clase.get(al.clase_id), mismas = clasesDe(cl.curso_id);
-    const r = await dialogo(`<h2>Modificar alumno/a</h2>
-      <p class="dlg-sub">${esc(nombreLargo(al.nombre))} · ${esc(cl.nombre)}</p>
-      <div class="opciones">
-        <label class="campo">Apellidos, Nombre <input name="nombre" value="${esc(al.nombre)}" autocomplete="off" required></label>
-        <label class="campo">Clase <select name="clase">${mismas.map((c) => `<option value="${c.id}"${c.id === cl.id ? " selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></label>
-      </div>
-      <p class="ayuda">Si cambia de clase, sus salidas anteriores siguen contando en la clase de antes.</p>
-      <div class="dlg-botones"><button class="btn" value="" formnovalidate>Cancelar</button><button class="btn primario" value="ok">Guardar</button></div>`);
-    if (r !== "ok") return;
-    const nombre = normalizarNombre(S.dlgDatos?.nombre || ""), clase_id = +S.dlgDatos?.clase;
-    if (!nombre) return toast("Escríbelo como «Apellidos, Nombre»");
-    const cambios = {};
-    if (nombre !== al.nombre) cambios.nombre = nombre;
-    if (clase_id && clase_id !== al.clase_id) Object.assign(cambios, { clase_id, orden: 999 });
-    if (!Object.keys(cambios).length) return;
-    try {
-      await api.actualizarAlumno(al.id, cambios); await recargarDatos();
-      toast(cambios.clase_id ? `Cambiado/a a ${S.clase.get(clase_id).nombre}` : "Datos actualizados");
-    } catch (err) { fallo(err); }
-  }
-
-  function pintarVistaPrevia() {
-    const cl = A.importadas;
-    if (!cl.length) {
-      $("#admVista").innerHTML = `<div class="alerta">No he encontrado ninguna lista de clase en esos PDF. Tienen que ser los de Séneca «Lista de clase» (un grupo por página).</div>`;
-      return;
-    }
-    const total = cl.reduce((n, c) => n + c.alumnos.length, 0);
-    $("#admVista").innerHTML = `
-      <div class="resumen-import"><strong>${cl.length} clases · ${total} alumnos</strong> encontrados. Revisa los nombres de las clases (puedes corregirlos) y pulsa «Crear curso».</div>
-      <div class="import-lista">${cl.map((c, i) => `
-        <div class="import-clase">
-          <input value="${esc(c.nombre)}" data-nombre-clase="${i}" aria-label="Nombre de la clase">
-          <span class="import-n">${c.alumnos.length} alumnos</span>
-          <button class="btn mini peligro" data-quitar-clase="${i}" title="Quitar esta clase">✕</button>
-          <details><summary>Tutor/a: ${esc(c.tutor || "—")} · ver alumnado</summary><ol>${c.alumnos.map((a) => `<li>${esc(a)}</li>`).join("")}</ol></details>
-        </div>`).join("")}</div>
-      <div id="admAvisos"></div>
-      <div class="acciones"><button class="btn primario" id="admCrear">Crear curso</button><button class="btn" id="admCancelar">Cancelar</button></div>`;
-    avisosVistaPrevia();
-  }
-
-  function avisosVistaPrevia() {
-    const cl = A.importadas, avisos = [];
-    const nombres = cl.map((c) => c.nombre.trim());
-    const rep = nombres.filter((n, i) => n && nombres.indexOf(n) !== i);
-    if (rep.length) avisos.push(`Hay clases con el mismo nombre: ${[...new Set(rep)].join(", ")}.`);
-    if (nombres.some((n) => !n)) avisos.push("Hay alguna clase sin nombre.");
-    const vacias = cl.filter((c) => !c.alumnos.length).map((c) => c.nombre);
-    if (vacias.length) avisos.push(`No se ha leído alumnado en: ${vacias.join(", ")}.`);
-    $("#admAvisos").innerHTML = avisos.map((a) => `<div class="alerta">${esc(a)}</div>`).join("");
-    $("#admCrear").disabled = rep.length > 0 || nombres.some((n) => !n);
-    $("#admCrear").textContent = `Crear curso ${$("#admNombre").value.trim()}`;
-  }
-
-  async function crearCursoNuevo() {
-    const nombre = $("#admNombre").value.trim();
-    if (!/^\d{4}-\d{4}$/.test(nombre)) return toast("El nombre del curso debe ser como 2027-2028");
-    if (S.cursos.some((c) => c.nombre === nombre)) return toast(`Ya existe el curso ${nombre}`);
-    const cl = A.importadas.map((c) => ({ nombre: c.nombre.trim(), tutor: c.tutor, alumnos: c.alumnos }));
-    const total = cl.reduce((n, c) => n + c.alumnos.length, 0);
-    const r = await dialogo(`
-      <h2>Crear curso ${esc(nombre)}</h2>
-      <p class="dlg-sub">${cl.length} clases · ${total} alumnos</p>
-      ${S.curso ? `<p>El curso <strong>${esc(S.curso.nombre)}</strong> quedará <strong>archivado</strong>: sus salidas se conservan y se pueden consultar en Informes eligiendo el curso.</p>` : ""}
-      <p>Desde ese momento, en Registrar solo aparecerá el alumnado de ${esc(nombre)}.</p>
-      <div class="dlg-botones"><button class="btn" value="">Cancelar</button><button class="btn primario" value="crear">Crear curso</button></div>`);
-    if (r !== "crear") return;
-    try {
-      await api.crearCurso(nombre, cl);
-      cerrarNuevoCurso();
-      await recargarDatos();
-      toast(`Curso ${nombre} creado`);
-    } catch (e) { fallo(e); }
   }
 
   // ─── App instalable ──────────────────────────────────────────────────────
